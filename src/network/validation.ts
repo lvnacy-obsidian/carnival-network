@@ -1,7 +1,7 @@
 import type {
 	NetworkNode,
 	NetworkResponse
-} from '../types';
+} from '../types/public';
 
 export class ValidationError extends Error {
 	constructor(message: string, public details?: unknown) {

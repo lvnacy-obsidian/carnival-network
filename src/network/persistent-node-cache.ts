@@ -7,7 +7,7 @@ import type {
 	CacheEntry,
 	CacheMetrics,
 	NetworkNode
-} from '../types';
+} from '../types/public';
 
 const cacheLogger = {
 	context: 'Persistent Node Cache',

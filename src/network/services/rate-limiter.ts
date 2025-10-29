@@ -3,7 +3,7 @@ import { Log } from '../../utils/logger';
 import type {
 	ExternalClient,
 	RateLimit
-} from '../../types';
+} from '../../types/public';
 
 const rateLimiterLogger = {
 	context: 'Rate Limiter',

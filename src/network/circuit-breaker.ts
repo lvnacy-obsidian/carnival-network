@@ -3,7 +3,7 @@ import { CircuitOpenError } from '../errors/circuit-open-error';
 import type {
 	CircuitBreakerOptions,
 	CircuitState
-} from '../types';
+} from '../types/public';
 
 /**
  * Circuit breaker for managing endpoint health

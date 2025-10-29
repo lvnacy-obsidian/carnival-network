@@ -7,7 +7,7 @@ import {
 import type {
 	ApiResponse,
 	LogContext
-} from '../../types';
+} from '../../types/public';
 
 const errorLogger: LogContext = {
 	context: 'API Error Handler',

@@ -4,9 +4,9 @@ import { Log } from '../../utils/logger';
 import type {
 	LogContext,
 	ObsidianAppWithPlugins,
-	RegistryNode,
-	RegistryService
-} from '../../types';
+	TerritoryNode,
+	TerritoryServiceInterface
+} from '../../types/public';
 
 const registryLogger: LogContext = {
 	context: 'Registry Access Service',
@@ -17,8 +17,8 @@ const registryLogger: LogContext = {
  * Provides centralized access to the HTTP Registry Service
  * Handles fallback when registry is unavailable
  */
-export class RegistryAccessService {
-	private cachedRegistryService?: RegistryService | undefined;
+export class TerritoryAccessService {
+	private cachedRegistryService?: TerritoryServiceInterface | undefined;
 	private lastAccessAttempt = 0;
 	private readonly cacheValidityMs = 1000; // Re-check every second
 
@@ -28,7 +28,7 @@ export class RegistryAccessService {
 	 * Get the registry service instance
 	 * Caches the reference briefly to avoid repeated lookups
 	 */
-	getRegistryService(): RegistryService {
+	getTerritoryService(): TerritoryServiceInterface {
 		const now = Date.now();
 		
 		// Use cached reference if still valid
@@ -49,20 +49,20 @@ export class RegistryAccessService {
 			
 			// Registry not available - return empty implementation
 			Log.warn(registryLogger, 'Registry service not available, using empty fallback');
-			return this.getEmptyRegistryService();
+			return this.getEmptyTerritoryService();
 			
 		} catch (error) {
 			Log.error(registryLogger, 'Failed to access registry service:', error);
-			return this.getEmptyRegistryService();
+			return this.getEmptyTerritoryService();
 		}
 	}
 
 	/**
 	 * Get all nodes from registry
 	 */
-	getAllNodes(): RegistryNode[] {
+	getAllNodes(): TerritoryNode[] {
 		try {
-			const registry = this.getRegistryService();
+			const registry = this.getTerritoryService();
 			return registry.nodeCache.getAll();
 		} catch (error) {
 			Log.error(registryLogger, 'Failed to get all nodes:', error);
@@ -73,9 +73,9 @@ export class RegistryAccessService {
 	/**
 	 * Get a specific node by ID
 	 */
-	getNode(nodeId: string): RegistryNode | null {
+	getNode(nodeId: string): TerritoryNode | null {
 		try {
-			const registry = this.getRegistryService();
+			const registry = this.getTerritoryService();
 			return registry.nodeCache.get(nodeId);
 		} catch (error) {
 			Log.error(registryLogger, `Failed to get node ${nodeId}:`, error);
@@ -86,7 +86,7 @@ export class RegistryAccessService {
 	/**
 	 * Get nodes filtered by territory
 	 */
-	getNodesByTerritory(territory: string): RegistryNode[] {
+	getNodesByTerritory(territory: string): TerritoryNode[] {
 		try {
 			const allNodes = this.getAllNodes();
 			return allNodes.filter(node => node.territoryName === territory);
@@ -99,7 +99,7 @@ export class RegistryAccessService {
 	/**
 	 * Get nodes filtered by capability
 	 */
-	getNodesByCapability(capability: string): RegistryNode[] {
+	getNodesByCapability(capability: string): TerritoryNode[] {
 		try {
 			const allNodes = this.getAllNodes();
 			return allNodes.filter(node => node.capabilities.includes(capability));
@@ -114,7 +114,7 @@ export class RegistryAccessService {
 	 */
 	getNodeCount(): number {
 		try {
-			const registry = this.getRegistryService();
+			const registry = this.getTerritoryService();
 			return registry.nodeCache.size();
 		} catch (error) {
 			Log.error(registryLogger, 'Failed to get node count:', error);
@@ -146,7 +146,7 @@ export class RegistryAccessService {
 	/**
 	 * Get empty registry service for fallback
 	 */
-	private getEmptyRegistryService(): RegistryService {
+	private getEmptyTerritoryService(): TerritoryServiceInterface {
 		return {
 			nodeCache: {
 				getAll: () => [],

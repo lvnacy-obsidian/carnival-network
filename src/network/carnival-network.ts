@@ -13,7 +13,7 @@ import type {
 import type {
 	APIKeyStorage,
 	CarnivalNetworkSettings
-} from '../types';
+} from '../types/public/index.js';
 
 const carnivalNetworkLogger = {
 	context: 'Carnival Network Class',

@@ -8,7 +8,7 @@ import type {
 	ApiRequest,
 	CarnivalNetworkSettings,
 	ExternalClient
-} from '../../types';
+} from '../../types/public';
 import type { RateLimiterService } from '../services/rate-limiter';
 
 const authLogger = {

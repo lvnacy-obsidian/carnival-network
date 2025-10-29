@@ -1,6 +1,6 @@
 // services/network-query-service.ts
 import { Log } from '../../utils/logger';
-import { RegistryAccessService } from './registry-access-service';
+import { TerritoryAccessService } from './territory-access-service';
 import type {
 	ActivityAnalytics,
 	AnalyticsData,
@@ -11,7 +11,7 @@ import type {
 	RecordAnalytics,
 	RegistryNode,
 	TerritoryAnalytics
-} from '../../types';
+} from '../../types/public';
 
 const networkLogger = {
 	context: 'Network Query Service',
@@ -21,9 +21,9 @@ const networkLogger = {
 /**
  * Handles network topology and status queries
  */
-export class NetworkQueryService {
+export class CarnivalQueryService {
 	constructor(
-		private readonly registryAccess: RegistryAccessService,
+		private readonly registryAccess: TerritoryAccessService,
 		private readonly startTime: number
 	) {}
 

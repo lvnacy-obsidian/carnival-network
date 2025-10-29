@@ -13,8 +13,8 @@ import type {
 	GitHubWebhookPayload,
 	LogContext,
 	WebhookResponse
-} from '../../types';
-import type { RecordService } from '../services/record-service';
+} from '../../types/public';
+import type { RecordService } from '../services/act-service';
 import type { WebhookVerifier } from '../services/webhook-verifier';
 
 const webhookLogger: LogContext = {

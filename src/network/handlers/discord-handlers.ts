@@ -16,9 +16,9 @@ import type {
 	RecordQueryResponse,
 	ValidationErrors as ValidationErrorsType,
 	TerritoriesResponse
-} from '../../types';
-import type { RecordService } from '../services/record-service';
-import type { NetworkQueryService } from '../services/network-query-service';
+} from '../../types/public';
+import type { RecordService } from '../services/act-service';
+import type { NetworkQueryService } from '../services/carnival-query-service';
 
 const discordLogger: LogContext = {
 	context: 'Discord Handlers',

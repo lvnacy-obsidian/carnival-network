@@ -4,8 +4,8 @@ import {
 	ValidationError
 } from '../../errors';
 import { Log } from '../../utils/logger';
-import type { RecordService } from '../services/record-service';
-import type { NetworkQueryService } from '../services/network-query-service';
+import type { RecordService } from '../services/act-service';
+import type { NetworkQueryService } from '../services/carnival-query-service';
 import type {
 	AnalyticsQueryParams,
 	AnalyticsResponse,
@@ -13,7 +13,7 @@ import type {
 	ExternalClient,
 	SearchRequestBody,
 	SearchResponse
-} from '../../types';
+} from '../../types/public';
 
 const searchLogger = {
 	context: 'Search Handlers',

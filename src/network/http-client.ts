@@ -5,7 +5,7 @@
 import type {
 	FetchOptions,
 	TLSConfig
-} from '../types';
+} from '../types/public';
 
 /**
  * Create TLS agent with certificate validation and mTLS support

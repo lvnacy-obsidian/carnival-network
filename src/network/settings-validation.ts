@@ -1,4 +1,4 @@
-import { CarnivalNetworkSettings } from '../types';
+import { CarnivalNetworkSettings } from '../types/public';
 
 /**
  * Settings validation utility

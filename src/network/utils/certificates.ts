@@ -1,4 +1,4 @@
-import type { CertificateInfo } from '../../types';
+import type { Certificate } from '../../types/internal';
 
 /**
  * Extract domain from certificate
@@ -11,7 +11,7 @@ export function extractDomainFromCert(pemData: string): string | null {
 /**
  * Get certificate expiry status
  */
-export function getCertificateExpiryStatus(cert: CertificateInfo): 'valid' | 'expiring-soon' | 'expired' {
+export function getCertificateExpiryStatus(cert: Certificate): 'valid' | 'expiring-soon' | 'expired' {
 	const now = new Date();
 	const thirtyDaysFromNow = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
 
@@ -29,7 +29,7 @@ export function getCertificateExpiryStatus(cert: CertificateInfo): 'valid' | 'ex
 /**
  * Check if certificate is expired
  */
-export function isCertificateExpired(cert: CertificateInfo): boolean {
+export function isCertificateExpired(cert: Certificate): boolean {
 	return new Date() > cert.validTo;
 }
 

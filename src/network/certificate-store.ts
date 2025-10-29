@@ -12,7 +12,7 @@ import type {
 	CertificateInfo,
 	TLSConfig,
 	TrustedCertificate
-} from '../types';
+} from '../types/public';
 
 const certStoreLogger = {
 	context: 'Certificate Store',

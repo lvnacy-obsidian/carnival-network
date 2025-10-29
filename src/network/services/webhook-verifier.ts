@@ -1,6 +1,6 @@
 // services/webhook-verifier.ts
 import { Log } from '../../utils/logger';
-import type { CarnivalNetworkSettings } from '../../types';
+import type { CarnivalNetworkSettings } from '../../types/public';
 
 const verifierLogger = {
 	context: 'Webhook Verifier',

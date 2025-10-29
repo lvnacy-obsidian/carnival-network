@@ -1,23 +1,23 @@
 // services/record-service.ts
 import { Log } from '../../utils/logger';
 import { fetchWithRetry } from '../http-client';
-import { RegistryAccessService } from './registry-access-service';
+import { TerritoryAccessService } from './territory-access-service';
 import {
 	NotFoundError,
 	ServiceUnavailableError
 } from '../../errors';
 import type {
-	CrossVaultRecord,
-	CreateRecordParams,
+	CarnivalRecord,
+	CreateActParams,
 	LogContext,
-	NetworkConfiguration,
+	CarnivalConfiguration,
 	NetworkRequestResponse,
-	RecordCountOptions,
-	RecordQueryOptions,
-	RegistryNode,
+	ActCountOptions,
+	ActQueryOptions,
+	TerritoryNode,
 	SearchOptions,
 	SearchResult
-} from '../../types';
+} from '../../types/public';
 
 const recordLogger: LogContext = {
 	context: 'Record Service',
@@ -27,10 +27,10 @@ const recordLogger: LogContext = {
 /**
  * Handles record operations - querying, creating, broadcasting
  */
-export class RecordService {
+export class ActService {
 	constructor(
-		private readonly registryAccess: RegistryAccessService,
-		private readonly config: NetworkConfiguration
+		private readonly territoryAccess: TerritoryAccessService,
+		private readonly config: CarnivalConfiguration
 	) {}
 
 	/**
@@ -42,8 +42,8 @@ export class RecordService {
 	/**
 	 * Create a new record
 	 */
-	createRecord(params: CreateRecordParams): CrossVaultRecord {
-		const record: CrossVaultRecord = {
+	createAct(params: CreateActParams): CarnivalRecord {
+		const record: CarnivalRecord = {
 			id: this.generateRecordId(),
 			title: params.title,
 			territory: params.territory,
@@ -75,7 +75,7 @@ export class RecordService {
 	/**
 	 * Generate summary for a record
 	 */
-	generateSummary(record: CrossVaultRecord): string {
+	generateSummary(record: CarnivalRecord): string {
 		if (!record.content || record.content.length <= 200) {
 			return record.content ?? 'No content available';
 		}
@@ -91,7 +91,7 @@ export class RecordService {
 		return `${ record.content.substring(0, 197) }...`;
 	}
 
-	private createChangelogRecord(node: RegistryNode): CrossVaultRecord {
+	private createChangelogRecord(node: TerritoryNode): CarnivalRecord {
 		return {
 			id: `changelog-${ node.nodeId }-${ Date.now() }`,
 			title: `Recent Changes in ${ node.territoryName }`,
@@ -113,7 +113,7 @@ export class RecordService {
 		};
 	}
 
-	private createConversationRecord(node: RegistryNode): CrossVaultRecord {
+	private createConversationRecord(node: TerritoryNode): CarnivalRecord {
 		return {
 			id: `conversation-${ node.nodeId }-${ Date.now() }`,
 			title: `Network Communication - ${ node.territoryName }`,
@@ -138,16 +138,16 @@ export class RecordService {
 	/**
 	 * Broadcast record to network
 	 */
-	async broadcastRecord(record: CrossVaultRecord): Promise<void> {
+	async broadcastRecord(record: CarnivalRecord): Promise<void> {
 		try {
-			if (!this.registryAccess.isAvailable()) {
+			if (!this.territoryAccess.isAvailable()) {
 				throw new ServiceUnavailableError(
 					'Registry Service',
 					'Node registry is not initialized'
 				);
 			}
 			
-			const allNodes = this.registryAccess.getAllNodes();
+			const allNodes = this.territoryAccess.getAllNodes();
 			let targetNodes = allNodes;
 
 			if (!record.syncPreferences.targetTerritories) {
@@ -211,15 +211,15 @@ export class RecordService {
 	/**
 	 * Query records based on parameters
 	 */
-	queryRecords(params: RecordQueryOptions): CrossVaultRecord[] {
+	queryRecords(params: ActQueryOptions): CarnivalRecord[] {
 		try {
-			const allNodes = this.registryAccess.getAllNodes();
+			const allNodes = this.territoryAccess.getAllNodes();
 			
 			const filteredNodes = params.territory 
 				? allNodes.filter(node => node.territoryName === params.territory)
 				: allNodes;
 			
-			const records: CrossVaultRecord[] = [];
+			const records: CarnivalRecord[] = [];
 			
 			for (const node of filteredNodes) {
 				if (node.capabilities.includes('changelog_sync') && 
@@ -246,9 +246,9 @@ export class RecordService {
 	/**
 	 * Count records matching parameters
 	 */
-	countRecords(params: RecordCountOptions): number {
+	countRecords(params: ActCountOptions): number {
 		try {
-			const allNodes = this.registryAccess.getAllNodes();
+			const allNodes = this.territoryAccess.getAllNodes();
 			
 			const filteredNodes = params.territory 
 				? allNodes.filter(node => node.territoryName === params.territory)
@@ -283,7 +283,7 @@ export class RecordService {
 			const results: SearchResult[] = [];
 			const query = params.query.toLowerCase();
 			
-			const allNodes = this.registryAccess.getAllNodes();
+			const allNodes = this.territoryAccess.getAllNodes();
 			
 			for (const node of allNodes) {
 				if (params.territories.length > 0 && 

@@ -7,7 +7,7 @@ import {
 	InternalServerError,
 	ValidationError
 } from '../../errors';
-import { ApiRequest, AuthenticationRequestBody } from '../../types';
+import { ApiRequest, AuthenticationRequestBody } from '../../types/public';
 
 const handlerLogger = {
 	context: 'Auth Handlers',

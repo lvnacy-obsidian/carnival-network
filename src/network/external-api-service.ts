@@ -8,9 +8,9 @@ import {
 	extractClientId
 } from './utils/client-authentication';
 import { RateLimiterService } from './services/rate-limiter';
-import { RecordService } from './services/record-service';
-import { RegistryAccessService } from './services/registry-access-service';
-import { NetworkQueryService } from './services/network-query-service';
+import { RecordService } from './services/act-service';
+import { RegistryAccessService } from './services/territory-access-service';
+import { NetworkQueryService } from './services/carnival-query-service';
 import { WebhookVerifier } from './services/webhook-verifier';
 
 // Handlers
@@ -39,7 +39,7 @@ import type {
 	ExternalClient,
 	LogContext,
 	NetworkConfiguration
-} from '../types';
+} from '../types/public';
 
 const externalAPILogger: LogContext = {
 	context: 'External API Service',

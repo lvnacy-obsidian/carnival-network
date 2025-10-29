@@ -20,7 +20,7 @@ import type {
 	NetworkConfiguration,
 	TLSConfig,
 	TrustedCertificate
-} from '../types';
+} from '../types/public/index.js';
 
 
 const httpRegistryLogger = {
