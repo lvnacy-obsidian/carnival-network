@@ -10,9 +10,9 @@
 import { Log } from '../utils/logger';
 import type {
 	CertificateInfo,
-	TLSConfig,
 	TrustedCertificate
-} from '../types/public';
+} from '../types/internal';
+import type { TLSConfig } from '../types/public';
 
 const certStoreLogger = {
 	context: 'Certificate Store',
@@ -81,7 +81,16 @@ export class CertificateStore {
 		notes?: string
 	): void {
 		const trustedCert: TrustedCertificate = {
-			...cert,
+			id: cert.fingerprint,
+			name: cert.commonName,
+			type: 'ca',
+			pem: cert.pemData,
+			fingerprint: cert.fingerprint,
+			validFrom: cert.validFrom.toISOString(),
+			validTo: cert.validTo.toISOString(),
+			issuer: cert.issuer,
+			subject: cert.commonName,
+			trusted: trustLevel === 'full',
 			trustLevel,
 			addedAt: new Date(),
 			notes,
@@ -99,8 +108,9 @@ export class CertificateStore {
 		const cert = this.trustedCertificates.get(fingerprint);
 		if (cert) {
 			cert.trustLevel = 'revoked';
+			cert.trusted = false;
 			this.revokedCertificates.add(fingerprint);
-			Log.warn(certStoreLogger, `Revoked certificate: ${cert.commonName} - ${reason ?? 'No reason provided'}`);
+			Log.warn(certStoreLogger, `Revoked certificate: ${cert.name} - ${reason ?? 'No reason provided'}`);
 		}
 	}
 
@@ -215,13 +225,14 @@ export class CertificateStore {
 		const trustedCerts = this.getTrustedCertificates();
 		const caBundlePEM = trustedCerts
 			.filter(cert => cert.trustLevel === 'full')
-			.map(cert => cert.pemData)
+			.map(cert => cert.pem)
 			.join('\n');
 
 		return {
-			...baseConfig,
-			caCertContent: caBundlePEM || baseConfig.caCertContent,
-			validateCert: baseConfig.validateCert !== false
+			enabled: baseConfig.enabled ?? true,
+			validateCert: baseConfig.validateCert ?? true,
+			allowSelfSigned: baseConfig.allowSelfSigned ?? false,
+			caCertContent: caBundlePEM || baseConfig.caCertContent
 		};
 	}
 
@@ -301,11 +312,13 @@ export class CertificateStore {
 		let healthy = 0;
 
 		for (const cert of this.trustedCertificates.values()) {
+			const validTo = new Date(cert.validTo);
+
 			if (cert.trustLevel === 'revoked') {
 				revoked++;
-			} else if (cert.validTo < now) {
+			} else if (validTo < now) {
 				expired++;
-			} else if (cert.validTo < thirtyDaysFromNow) {
+			} else if (validTo < thirtyDaysFromNow) {
 				expiringSoon++;
 			} else {
 				healthy++;

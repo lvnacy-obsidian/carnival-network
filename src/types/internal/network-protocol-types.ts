@@ -14,11 +14,11 @@ export interface MessageMetadata {
 	timestamp: string;
 	source: {
 		pluginId: string;
-		nodeId: string;
+		performerId: string;
 		territory: string;
 	};
 	destination?: {
-		nodeId?: string;
+		performerId?: string;
 		territory?: string;
 	};
 	correlationId?: string;

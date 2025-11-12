@@ -12,7 +12,7 @@
  * Broadcast result
  */
 export interface BroadcastResult {
-	nodeId: string;
+	performerId: string;
 	territory: string;
 	success: boolean;
 	acknowledged?: boolean;

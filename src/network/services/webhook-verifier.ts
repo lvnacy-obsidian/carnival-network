@@ -1,6 +1,9 @@
 // services/webhook-verifier.ts
 import { Log } from '../../utils/logger';
-import type { CarnivalNetworkSettings } from '../../types/public';
+import type {
+	APIRequest,
+	CarnivalNetworkSettings
+} from '../../types/public';
 
 const verifierLogger = {
 	context: 'Webhook Verifier',
@@ -16,7 +19,7 @@ export class WebhookVerifier {
 	/**
 	 * Verify GitHub webhook signature
 	 */
-	verifyGitHub(request: any): boolean {
+	verifyGitHub(request: APIRequest): boolean {
 		try {
 			const signature = request.headers['x-hub-signature-256'];
 			const payload = request.rawBody ?? JSON.stringify(request.body);
@@ -63,7 +66,7 @@ export class WebhookVerifier {
 	/**
 	 * Verify Beehiiv webhook signature
 	 */
-	verifyBeehiiv(request: any): boolean {
+	verifyBeehiiv(request: APIRequest): boolean {
 		try {
 			const signature = request.headers['x-beehiiv-signature'];
 			const payload = request.rawBody ?? JSON.stringify(request.body);

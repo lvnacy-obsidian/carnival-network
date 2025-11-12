@@ -2,12 +2,12 @@
 import { ClientAuthenticationManager, extractClientId } from '../utils/client-authentication';
 import { Log } from '../../utils/logger';
 import {
-	ApiError,
+	APIError,
 	AuthenticationError,
 	InternalServerError,
 	ValidationError
 } from '../../errors';
-import { ApiRequest, AuthenticationRequestBody } from '../../types/public';
+import { APIRequest, AuthenticationRequestBody } from '../../types/public';
 
 const handlerLogger = {
 	context: 'Auth Handlers',
@@ -73,7 +73,7 @@ export function handleAuthentication(
 			tokenType: 'Bearer'
 		};
 	} catch (error) {
-		if (error instanceof ApiError) {
+		if (error instanceof APIError) {
 			throw error;
 		}
 		throw new InternalServerError('Authentication processing failed', error);
@@ -85,7 +85,7 @@ export function handleAuthentication(
  * POST /api/auth/refresh
  */
 export function handleTokenRefresh(
-	request: ApiRequest,
+	request: APIRequest,
 	authManager: ClientAuthenticationManager
 ): {
 	clientId: string;
@@ -106,7 +106,7 @@ export function handleTokenRefresh(
  * DELETE /api/auth/token
  */
 export function handleTokenRevocation(
-	request: ApiRequest,
+	request: APIRequest,
 	authManager: ClientAuthenticationManager
 ): { message: string } {
 	const clientId = extractClientId(request);
@@ -126,7 +126,7 @@ export function handleTokenRevocation(
  * Middleware to check authentication before route handlers
  */
 export function checkAuthentication(
-	request: ApiRequest,
+	request: APIRequest,
 	authManager: ClientAuthenticationManager
 ): void {
 	const clientId = extractClientId(request);

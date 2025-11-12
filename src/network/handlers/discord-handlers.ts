@@ -4,21 +4,21 @@ import {
 	ValidationError
 } from '../../errors';
 import { Log } from '../../utils/logger';
+import type { ActService } from '../services/act-service';
+import type { CarnivalQueryService } from '../services/carnival-query-service';
+import { ValidationError as  ValidationErrorsType } from '../../errors';
 import type {
-	ApiRequest,
-	CrossVaultRecord,
+	APIRequest,
+	CarnivalRecord,
 	ExternalClient,
 	LogContext,
 	NetworkStatusResponse,
 	RecordCreateResponse,
-	RecordCreateRequestBody,
-	RecordQueryParams,
+	ActCreateRequestBody,
+	ActQueryParams,
 	RecordQueryResponse,
-	ValidationErrors as ValidationErrorsType,
 	TerritoriesResponse
 } from '../../types/public';
-import type { RecordService } from '../services/act-service';
-import type { NetworkQueryService } from '../services/carnival-query-service';
 
 const discordLogger: LogContext = {
 	context: 'Discord Handlers',
@@ -27,8 +27,8 @@ const discordLogger: LogContext = {
 
 export class DiscordHandlers {
 	constructor(
-		private readonly recordService: RecordService,
-		private readonly networkService: NetworkQueryService
+		private readonly actService: ActService,
+		private readonly networkService: CarnivalQueryService
 	) {}
 
 	/**
@@ -38,13 +38,13 @@ export class DiscordHandlers {
 	handleNetworkStatus(): NetworkStatusResponse {
 		try {
 
-			const connectedNodes = this.networkService.getConnectedNodesCount();
+			const connectedPerformers = this.networkService.getConnectedPerformersCount();
 			const recentActivity = this.networkService.getRecentActivity(24);
 
 			return {
 				status: 'operational',
 				uptime: this.networkService.getUptimeMs(),
-				connectedNodes,
+				connectedPerformers,
 				recentActivity,
 				capabilities: ['record_sync', 'cross_vault_messaging', 'external_api']
 			};
@@ -58,12 +58,14 @@ export class DiscordHandlers {
 	 * Handle records query request
 	 * GET /api/discord/records
 	 */
+
+	/* eslint-disable require-await */
 	async handleRecordsQuery(
-		request: ApiRequest,
+		request: APIRequest,
 		_client: ExternalClient
 	): Promise<RecordQueryResponse> {
 
-		const params = request.query as RecordQueryParams;
+		const params = request.query as ActQueryParams;
 		const {
 			territory,
 			type,
@@ -90,34 +92,34 @@ export class DiscordHandlers {
 		}
 		
 		try {
-			const records = await this.recordService.queryRecords({
+			const acts = this.actService.queryActs({
 				territory: territory ? String(territory) : '',
 				type: type as 'changelog' | 'conversation' || '',
 				limit: Math.min(limitNum, 50),
 				offset: offsetNum
 			});
 
-			const newRecords: Array<CrossVaultRecord> = records.map(record => {
-				if (typeof record.recordType === 'string') {
-					record.recordType = '' as 'changelog' | 'conversation';
+			const newActs: Array<CarnivalRecord> = acts.map(act => {
+				if (typeof act.actType === 'string') {
+					act.actType = '' as 'changelog' | 'conversation';
 				} else {
-					record.recordType = record.recordType;
+					act.actType = act.actType;
 				}
 
-				return record;
+				return act;
 			});
 
-			const formattedRecords = newRecords.map(record => ({
-				id: record.id,
-				title: record.title,
-				territory: record.territory,
-				type: record.recordType as 'changelog' | 'conversation',
-				created: record.createdAt,
-				status: record.status,
-				summary: this.recordService.generateSummary(record)
+			const formattedRecords = newActs.map(act => ({
+				id: act.id,
+				title: act.title,
+				territory: act.territory,
+				type: act.actType as 'changelog' | 'conversation',
+				created: act.createdAt,
+				status: act.status,
+				summary: this.actService.generateSummary(act)
 			}));
 
-			const total = await this.recordService.countRecords({ 
+			const total = this.actService.countActs({ 
 				territory: territory ? String(territory) : '',
 				type: type ? String(type) : ''
 			});
@@ -139,17 +141,16 @@ export class DiscordHandlers {
 			throw error;
 		}
 	}
+	/* eslint-enable require-await */
 
 	/**
 	 * Handle record creation request
 	 * POST /api/discord/records
 	 */
 	async handleRecordCreate(
-		request: ApiRequest,
+		request: APIRequest,
 		client: ExternalClient
 	): Promise<RecordCreateResponse> {
-		/* eslint-disable @typescript-eslint/prefer-optional-chain */
-
 		const body = this.parseRecordCreateBody(request.body);
 		
 		// Detailed validation
@@ -178,11 +179,11 @@ export class DiscordHandlers {
 		}
 
 		try {
-			const record: CrossVaultRecord = {
-				id: this.recordService.generateRecordId(),
+			const record: CarnivalRecord = {
+				id: this.actService.generateRecordId(),
 				title: body.title.trim(),
 				territory: body.territory.trim(),
-				recordType: body.type,
+				actType: body.type,
 				content: body.content?.trim() ?? '',
 				metadata: {
 					...body.metadata,
@@ -199,7 +200,7 @@ export class DiscordHandlers {
 				}
 			};
 
-			await this.recordService.broadcastRecord(record);
+			await this.actService.broadcastAct(record);
 
 			return {
 				recordId: record.id,
@@ -218,28 +219,28 @@ export class DiscordHandlers {
 	 * GET /api/discord/territories
 	 */
 	handleTerritoriesQuery(
-		_request: ApiRequest,
+		_request: APIRequest,
 		_client: ExternalClient
 	): TerritoriesResponse {
 		try {
 			const topology = this.networkService.getNetworkTopology();
 
 			let topologyStatus;
-			if (topology.territories.nodeCount > 0) {
+			if (topology.territories.performerCount > 0) {
 				topologyStatus = 'active' as 'active' | 'inactive';
 			} else {
 				topologyStatus = 'inactive' as 'active' | 'inactive';
 			}
 			
-			const territories = Object.entries(topology.territories).map(([name, nodeCount]) => ({
+			const territories = Object.entries(topology.territories).map(([name, performerCount]) => ({
 				name,
-				nodeCount,
+				performerCount,
 				status: topologyStatus
 			}));
 
 			return {
 				territories,
-				totalNodes: topology.totalNodes,
+				totalPerformers: topology.totalPerformers,
 				activeRegistries: topology.activeRegistries,
 				capabilities: topology.capabilities,
 				lastUpdated: topology.lastUpdated
@@ -253,7 +254,7 @@ export class DiscordHandlers {
 	/**
 	 * Parse and validate record creation body
 	 */
-	private parseRecordCreateBody(body: unknown): RecordCreateRequestBody {
+	private parseRecordCreateBody(body: unknown): ActCreateRequestBody {
 		if (!body || typeof body !== 'object') {
 			throw new ValidationError('Request body must be an object', {});
 		}

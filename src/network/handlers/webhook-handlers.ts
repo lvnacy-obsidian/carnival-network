@@ -6,7 +6,7 @@ import {
 } from '../../errors';
 import { Log } from '../../utils/logger';
 import type {
-	ApiRequest,
+	APIRequest,
 	BeehiivPostData,
 	BeehiivWebhookPayload,
 	CrossVaultRecord,
@@ -14,7 +14,7 @@ import type {
 	LogContext,
 	WebhookResponse
 } from '../../types/public';
-import type { RecordService } from '../services/act-service';
+import type { ActService } from '../services/act-service';
 import type { WebhookVerifier } from '../services/webhook-verifier';
 
 const webhookLogger: LogContext = {
@@ -24,7 +24,7 @@ const webhookLogger: LogContext = {
 
 export class WebhookHandlers {
 	constructor(
-		private readonly recordService: RecordService,
+		private readonly actService: ActService,
 		private readonly verifier: WebhookVerifier
 	) {}
 
@@ -32,7 +32,7 @@ export class WebhookHandlers {
 	 * Handle GitHub webhook
 	 * POST /api/webhooks/github
 	 */
-	async handleGitHub(request: ApiRequest): Promise<WebhookVerifier> {
+	async handleGitHub(request: APIRequest): Promise<WebhookVerifier> {
 		// Verify GitHub signature
 		if (!this.verifier.verifyGitHub(request)) {
 			throw new AuthenticationError(
@@ -86,7 +86,7 @@ export class WebhookHandlers {
 	 * Handle Beehiiv webhook
 	 * POST /api/webhooks/beehiiv
 	 */
-	async handleBeehiiv(request: ApiRequest): Promise<WebhookResponse> {
+	async handleBeehiiv(request: APIRequest): Promise<WebhookResponse> {
 		if (!this.verifier.verifyBeehiiv(request)) {
 			throw new AuthenticationError(
 				'Invalid beehiiv webhook signature',
@@ -139,7 +139,7 @@ export class WebhookHandlers {
 			id: `github-pr-${ repo.id }-${ pr.number }-${ Date.now() }`,
 			title: `GitHub PR: ${pr.title}`,
 			territory: 'github-integrations',
-			recordType: 'changelog',
+			actType: 'changelog',
 			content: `
 				Pull Request opened in ${ repo.full_name }
 				
@@ -157,7 +157,7 @@ export class WebhookHandlers {
 				createdBy: 'github-webhook',
 				createdVia: 'external-api'
 			},
-			createdAt: pr.created_at || new Date().toISOString(),
+			createdAt: pr.created_at ?? new Date().toISOString(),
 			status: 'active',
 			syncPreferences: {
 				requireAck: false,
@@ -166,7 +166,7 @@ export class WebhookHandlers {
 			}
 		};
 		
-		await this.recordService.broadcastRecord(record);
+		await this.actService.broadcastAct(record);
 		Log.log(webhookLogger, `GitHub PR record created: ${ pr.title } (PR #${ pr.number })`);
 	}
 
@@ -189,7 +189,7 @@ export class WebhookHandlers {
 			id: `github-issue-${ repo.id }-${ issue.number }-${ Date.now() }`,
 			title: `GitHub Issue: ${ issue.title }`,
 			territory: 'github-integrations',
-			recordType: 'changelog',
+			actType: 'changelog',
 			content: `
 				Issue opened in ${ repo.full_name }
 				
@@ -207,7 +207,7 @@ export class WebhookHandlers {
 				createdBy: 'github-webhook',
 				createdVia: 'external-api'
 			},
-			createdAt: issue.created_at || new Date().toISOString(),
+			createdAt: issue.created_at ?? new Date().toISOString(),
 			status: 'active',
 			syncPreferences: {
 				requireAck: false,
@@ -216,7 +216,7 @@ export class WebhookHandlers {
 			}
 		};
 		
-		await this.recordService.broadcastRecord(record);
+		await this.actService.broadcastAct(record);
 		Log.log(webhookLogger, `GitHub issue record created: ${ issue.title } (Issue #${ issue.number })`);
 	}
 
@@ -224,11 +224,11 @@ export class WebhookHandlers {
 
 		const data = payload.data as BeehiivPostData;
 
-		const record = await this.recordService.createRecord({
+		const record = this.actService.createAct({
 			id: `beehiiv-post-${data.post.id}-${Date.now()}`,
 			title: `Newsletter: ${data.post.title}`,
 			territory: 'newsletter-publishing',
-			recordType: 'conversation',
+			actType: 'conversation',
 			content: `
 				Newsletter post published on beehiiv
 
@@ -257,7 +257,7 @@ export class WebhookHandlers {
 			}
 		});
 		
-		await this.recordService.broadcastRecord(record);
+		await this.actService.broadcastAct(record);
 		Log.log(webhookLogger, `Beehiiv post published: ${ data.post.title }`);
 	}
 
@@ -266,7 +266,7 @@ export class WebhookHandlers {
 			id: `beehiiv-subscriber-${ data.subscriber.id }-${ Date.now() }`,
 			title: `New Subscriber: ${ data.subscriber.email }`,
 			territory: 'newsletter-growth',
-			recordType: 'changelog',
+			actType: 'changelog',
 			content: `
 				New subscriber joined
 				
@@ -293,7 +293,7 @@ export class WebhookHandlers {
 			}
 		};
 		
-		await this.recordService.broadcastRecord(record);
+		await this.actService.broadcastAct(record);
 		Log.log(webhookLogger, `Beehiiv subscriber created: ${data.subscriber.email}`);
 	}
 

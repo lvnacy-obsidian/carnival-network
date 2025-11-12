@@ -20,7 +20,7 @@ export interface SearchOptions {
 }
 
 export interface SearchFilters {
-	recordTypes?: string[];
+	actTypes?: string[];
 	dateRange?: {
 		start: string;
 		end: string;

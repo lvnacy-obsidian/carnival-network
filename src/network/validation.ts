@@ -1,6 +1,6 @@
 import type {
-	NetworkNode,
-	NetworkResponse
+	NetworkRequestResponse,
+	Performer
 } from '../types/public';
 
 export class ValidationError extends Error {
@@ -10,84 +10,84 @@ export class ValidationError extends Error {
 	}
 }
 
-export function validateNetworkNode(node: unknown): asserts node is NetworkNode {
-	if (!node || typeof node !== 'object') {
-		throw new ValidationError('Invalid node: expected object');
+export function validatePerformer(performer: unknown): asserts performer is Performer {
+	if (!performer || typeof performer !== 'object') {
+		throw new ValidationError('Invalid performer: expected object');
 	}
 
 	const requiredFields = ['id', 'name', 'territory', 'capabilities', 'lastSeen', 'metadata'];
 	for (const field of requiredFields) {
-		if (!(field in node)) {
-			throw new ValidationError(`Invalid node: missing required field "${field}"`);
+		if (!(field in performer)) {
+			throw new ValidationError(`Invalid performer: missing required field "${field}"`);
 		}
 	}
 
-	const n = node as NetworkNode; // Type assertion for easier checks
+	const n = performer as Performer; // Type assertion for easier checks
 
 	// Validate types of required fields
 	if (typeof n.id !== 'string') {
-		throw new ValidationError('Invalid node: id must be a string');
+		throw new ValidationError('Invalid performer: id must be a string');
 	}
 	if (typeof n.name !== 'string') {
-		throw new ValidationError('Invalid node: name must be a string');
+		throw new ValidationError('Invalid performer: name must be a string');
 	}
 	if (typeof n.territory !== 'string') {
-		throw new ValidationError('Invalid node: territory must be a string');
+		throw new ValidationError('Invalid performer: territory must be a string');
 	}
 	if (!Array.isArray(n.capabilities)) {
-		throw new ValidationError('Invalid node: capabilities must be an array');
+		throw new ValidationError('Invalid performer: capabilities must be an array');
 	}
 	if (typeof n.lastSeen !== 'string' || isNaN(Date.parse(n.lastSeen))) {
-		throw new ValidationError('Invalid node: lastSeen must be a valid ISO date string');
+		throw new ValidationError('Invalid performer: lastSeen must be a valid ISO date string');
 	}
 	if (!n.metadata || typeof n.metadata !== 'object') {
-		throw new ValidationError('Invalid node: metadata must be an object');
+		throw new ValidationError('Invalid performer: metadata must be an object');
 	}
 
 	// Optional fields type checking
 	if (n.path !== undefined && typeof n.path !== 'string') {
-		throw new ValidationError('Invalid node: path must be a string if present');
+		throw new ValidationError('Invalid performer: path must be a string if present');
 	}
 	if (n.status !== undefined && !['active', 'inactive', 'unknown'].includes(n.status)) {
-		throw new ValidationError('Invalid node: status must be active, inactive, or unknown if present');
+		throw new ValidationError('Invalid performer: status must be active, inactive, or unknown if present');
 	}
 	if (n.pluginVersion !== undefined && typeof n.pluginVersion !== 'string') {
-		throw new ValidationError('Invalid node: pluginVersion must be a string if present');
+		throw new ValidationError('Invalid performer: pluginVersion must be a string if present');
 	}
 }
 
-export function validateNetworkNodes(nodes: unknown[]): NetworkNode[] {
-	const validNodes: NetworkNode[] = [];
+export function validatePerformers(performers: unknown[]): Performer[] {
+	const validPerformers: Performer[] = [];
 
-	for (const [index, node] of nodes.entries()) {
+	for (const [index, performer] of performers.entries()) {
 		try {
-			validateNetworkNode(node);
-			validNodes.push(node);
+			validatePerformer(performer);
+			validPerformers.push(performer);
 		} catch (error) {
 			if (error instanceof ValidationError) {
 				throw new ValidationError(
-					`Invalid node at index ${index}: ${error.message}`,
-					{ index, node, originalError: error }
+					`Invalid performer at index ${index}: ${error.message}`,
+					{ index, performer, originalError: error }
 				);
 			}
 			throw error;
 		}
 	}
 
-	return validNodes;
+	return validPerformers;
 }
 
-export function validateRegistryResponse(data: unknown): asserts data is NetworkResponse {
+export function validateRegistryResponse(data: unknown): asserts data is NetworkRequestResponse {
 	if (!data || typeof data !== 'object') {
 		throw new ValidationError('Invalid registry response: expected object');
 	}
 
-	// Check if it has a nodes array
-	if (!('nodes' in data)) {
-		throw new ValidationError('Invalid registry response: missing nodes array');
+	// Check if it has a performers array
+	if (!('performers' in data)) {
+		throw new ValidationError('Invalid registry response: missing performers array');
 	}
 
-	if (!Array.isArray(data.nodes)) {
-		throw new ValidationError('Invalid registry response: nodes is not an array');
+	if (!Array.isArray(data.performers)) {
+		throw new ValidationError('Invalid registry response: performers is not an array');
 	}
 }

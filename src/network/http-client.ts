@@ -16,7 +16,7 @@ async function createTLSAgent(
 ): Promise<any> {
 	
 	// Only available in Node.js environment
-	if (typeof process === 'undefined' || !process.versions?.node) {
+	if (typeof process === 'undefined' || !process.versions?.performer) {
 		return null;
 	}
 
@@ -80,7 +80,6 @@ export async function fetchWithRetry(
 			return await fetchWithTimeout(url, opts, timeout);
 		} catch (err) {
 			attempt++;
-			const isAbort = (err as any)?.name === 'AbortError';
 
 			// For abort/timeouts and network errors, retry up to retries
 			if (attempt > retries) {
@@ -106,7 +105,7 @@ export async function fetchWithTimeout(
 	const { signal } = controller;
 	const id = setTimeout(() => controller.abort(), timeoutMs);
 
-	const fetchOpts: any = { ...(opts || {}), signal };
+	const fetchOpts: any = { ...(opts ?? {}), signal };
 	
 	// Apply TLS configuration for HTTPS requests
 	if (opts.tlsConfig && url.startsWith('https://')) {

@@ -34,3 +34,8 @@ export interface ValidationError {
 	message: string;
 	code: string;
 }
+
+/**
+ * Validation error field map
+ */
+export type ValidationErrors = Record<string, string>;

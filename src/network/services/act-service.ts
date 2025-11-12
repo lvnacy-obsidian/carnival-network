@@ -7,30 +7,31 @@ import {
 	ServiceUnavailableError
 } from '../../errors';
 import type {
+	ActCountOptions,
+	ActQueryOptions,
+	ActServiceInterface,
+	CarnivalConfig,
 	CarnivalRecord,
 	CreateActParams,
 	LogContext,
-	CarnivalConfiguration,
 	NetworkRequestResponse,
-	ActCountOptions,
-	ActQueryOptions,
-	TerritoryNode,
+	RegistryEntry,
 	SearchOptions,
 	SearchResult
 } from '../../types/public';
 
-const recordLogger: LogContext = {
-	context: 'Record Service',
-	path: '/.obsidian/plugins/carnival-records/network/services/record-service'
+const actLogger: LogContext = {
+	context: 'Act Service',
+	path: '/.obsidian/plugins/carnival-network/services/act-service'
 };
 
 /**
- * Handles record operations - querying, creating, broadcasting
+ * 🎭 Handles act (record) operations - querying, creating, broadcasting
  */
-export class ActService {
+export class ActService implements ActServiceInterface {
 	constructor(
 		private readonly territoryAccess: TerritoryAccessService,
-		private readonly config: CarnivalConfiguration
+		private readonly config: CarnivalConfig
 	) {}
 
 	/**
@@ -40,14 +41,14 @@ export class ActService {
 	 */
 
 	/**
-	 * Create a new record
+	 * Create a new act
 	 */
 	createAct(params: CreateActParams): CarnivalRecord {
 		const record: CarnivalRecord = {
-			id: this.generateRecordId(),
+			id: this.generateActId(),
 			title: params.title,
 			territory: params.territory,
-			recordType: params.recordType,
+			actType: params.actType,
 			content: params.content,
 			metadata: {
 				...params.metadata,
@@ -68,7 +69,7 @@ export class ActService {
 	/**
 	 * Generate unique record ID
 	 */
-	generateRecordId(): string {
+	generateActId(): string {
 		return `record-${ Date.now().toString(36) }-${ Math.random().toString(36).substring(2) }`;
 	}
 
@@ -91,41 +92,41 @@ export class ActService {
 		return `${ record.content.substring(0, 197) }...`;
 	}
 
-	private createChangelogRecord(node: TerritoryNode): CarnivalRecord {
+	private createChangelogAct(performer: RegistryEntry): CarnivalRecord {
 		return {
-			id: `changelog-${ node.nodeId }-${ Date.now() }`,
-			title: `Recent Changes in ${ node.territoryName }`,
-			territory: node.territoryName,
-			recordType: 'changelog',
-			content: `Development activity in ${ node.territoryName } territory. Node ${ node.nodeId } reporting operational status.`,
+			id: `changelog-${ performer.performerId }-${ Date.now() }`,
+			title: `Recent Changes in ${ performer.territoryName }`,
+			territory: performer.territoryName,
+			actType: 'changelog',
+			content: `Development activity in ${ performer.territoryName } territory. Performer ${ performer.performerId } reporting operational status.`,
 			metadata: {
-				nodeId: node.nodeId,
-				lastSeen: node.lastSeen,
-				capabilities: node.capabilities
+				performerId: performer.performerId,
+				lastSeen: performer.lastSeen,
+				capabilities: performer.capabilities
 			},
-			createdAt: node.lastSeen ?? new Date().toISOString(),
+			createdAt: performer.lastSeen ?? new Date().toISOString(),
 			status: 'active',
 			syncPreferences: {
 				requireAck: true,
 				broadcastToAll: false,
-				targetTerritories: [node.territoryName]
+				targetTerritories: [performer.territoryName]
 			}
 		};
 	}
 
-	private createConversationRecord(node: TerritoryNode): CarnivalRecord {
+	private createConversationAct(performer: RegistryEntry): CarnivalRecord {
 		return {
-			id: `conversation-${ node.nodeId }-${ Date.now() }`,
-			title: `Network Communication - ${ node.territoryName }`,
-			territory: node.territoryName,
-			recordType: 'conversation',
-			content: `Inter-node communication logged for territory ${ node.territoryName }. Active protocols: ${ node.capabilities.join(', ') }.`,
+			id: `conversation-${ performer.performerId }-${ Date.now() }`,
+			title: `Network Communication - ${ performer.territoryName }`,
+			territory: performer.territoryName,
+			actType: 'conversation',
+			content: `Inter-performer communication logged for territory ${ performer.territoryName }. Active protocols: ${ performer.capabilities.join(', ') }.`,
 			metadata: {
-				nodeId: node.nodeId,
-				protocols: node.capabilities,
+				performerId: performer.performerId,
+				protocols: performer.capabilities,
 				connectionType: 'http-registry'
 			},
-			createdAt: node.discoveredAt ?? new Date().toISOString(),
+			createdAt: performer.discoveredAt ?? new Date().toISOString(),
 			status: 'active',
 			syncPreferences: {
 				requireAck: false,
@@ -138,17 +139,17 @@ export class ActService {
 	/**
 	 * Broadcast record to network
 	 */
-	async broadcastRecord(record: CarnivalRecord): Promise<void> {
+	async broadcastAct(record: CarnivalRecord): Promise<void> {
 		try {
 			if (!this.territoryAccess.isAvailable()) {
 				throw new ServiceUnavailableError(
 					'Registry Service',
-					'Node registry is not initialized'
+					'Performer registry is not initialized'
 				);
 			}
 			
-			const allNodes = this.territoryAccess.getAllNodes();
-			let targetNodes = allNodes;
+			const allPerformers = this.territoryAccess.getAllPerformers();
+			let targetPerformers = allPerformers;
 
 			if (!record.syncPreferences.targetTerritories) {
 				throw new NotFoundError(
@@ -159,77 +160,77 @@ export class ActService {
 			
 			if (!record.syncPreferences.broadcastToAll && 
 				record.syncPreferences.targetTerritories) {
-				targetNodes = allNodes.filter(node => 
-					record.syncPreferences.targetTerritories?.includes(node.territoryName)
+				targetPerformers = allPerformers.filter((performer) => 
+					record.syncPreferences.targetTerritories?.includes(performer.territoryName)
 				);
 			}
 			
-			const broadcastPromises = targetNodes.map(async (node) => {
+			const broadcastPromises = targetPerformers.map(async (performer) => {
 				try {
 					const payload = {
 						record,
 						source: {
-							nodeId: 'local-api-service',
+							performerId: 'local-api-service',
 							territory: 'external-api'
 						},
 						timestamp: new Date().toISOString(),
 						requireAck: record.syncPreferences.requireAck
 					};
 					
-					const endpoint = `${node.endpoint}/carnival/network/broadcast`;
+					const endpoint = `${performer.endpoint}/carnival/network/broadcast`;
 					const response = await this.makeNetworkRequest(endpoint, 'POST', payload);
 					
 					if (response.ok) {
-						Log.log(recordLogger, 
-							`Record broadcast successful to ${node.territoryName} (${node.nodeId})`
+						Log.log(actLogger, 
+							`Record broadcast successful to ${performer.territoryName} (${performer.performerId})`
 						);
 					} else {
-						Log.warn(recordLogger, 
-							`Record broadcast failed to ${node.territoryName}: ${response.status}`
+						Log.warn(actLogger, 
+							`Record broadcast failed to ${performer.territoryName}: ${response.status}`
 						);
 					}
 				} catch (error) {
-					Log.error(recordLogger, `Broadcast error to ${node.territoryName}:`, error);
+					Log.error(actLogger, `Broadcast error to ${performer.territoryName}:`, error);
 				}
 			});
 			
 			await Promise.allSettled(broadcastPromises);
-			Log.log(recordLogger, `Record ${record.id} broadcast to ${targetNodes.length} nodes`);
+			Log.log(actLogger, `Record ${record.id} broadcast to ${targetPerformers.length} performers`);
 			
 		} catch (error) {
-			Log.error(recordLogger, 'Failed to broadcast record:', error);
+			Log.error(actLogger, 'Failed to broadcast record:', error);
 			throw error;
 		}
 	}
 
 	/**
 	 * ============================================================================
-	 * QUERY RECORDS & SEARCH
+	 * QUERY ACTS & SEARCH
 	 * ============================================================================
 	 */
 
 	/**
 	 * Query records based on parameters
 	 */
-	queryRecords(params: ActQueryOptions): CarnivalRecord[] {
+	queryActs(params: ActQueryOptions): CarnivalRecord[] {
 		try {
-			const allNodes = this.territoryAccess.getAllNodes();
+			const allPerformers = this.territoryAccess.getAllPerformers();
 			
-			const filteredNodes = params.territory 
-				? allNodes.filter(node => node.territoryName === params.territory)
-				: allNodes;
+			const filteredPerformers = params.territory 
+				? allPerformers.filter(performer => performer.territoryName === params.territory)
+				: allPerformers;
 			
 			const records: CarnivalRecord[] = [];
 			
-			for (const node of filteredNodes) {
-				if (node.capabilities.includes('changelog_sync') && 
+			for (const performer of filteredPerformers) {
+				if (performer.capabilities.includes('changelog_sync') && 
 					(!params.type || params.type === 'changelog')) {
-					records.push(this.createChangelogRecord(node));
+					records.push(this.createChangelogAct(performer));
 				}
 				
-				if (node.capabilities.includes('conversation_sync') && 
+				if (performer.capabilities.includes('conversation_sync') && 
 					(!params.type || params.type === 'conversation')) {
-					records.push(this.createConversationRecord(node));
+					records.push(this.createConversationAct(performer));
 				}
 			}
 			
@@ -238,7 +239,7 @@ export class ActService {
 			return records.slice(startIndex, endIndex);
 			
 		} catch (error) {
-			Log.error(recordLogger, 'Failed to query records:', error);
+			Log.error(actLogger, 'Failed to query records:', error);
 			return [];
 		}
 	}
@@ -246,23 +247,23 @@ export class ActService {
 	/**
 	 * Count records matching parameters
 	 */
-	countRecords(params: ActCountOptions): number {
+	countActs(params: ActCountOptions): number {
 		try {
-			const allNodes = this.territoryAccess.getAllNodes();
+			const allPerformers = this.territoryAccess.getAllPerformers();
 			
-			const filteredNodes = params.territory 
-				? allNodes.filter(node => node.territoryName === params.territory)
-				: allNodes;
+			const filteredPerformers = params.territory 
+				? allPerformers.filter(performer => performer.territoryName === params.territory)
+				: allPerformers;
 			
 			let count = 0;
-			for (const node of filteredNodes) {
+			for (const performer of filteredPerformers) {
 				if (!params.type || params.type === 'changelog') {
-					if (node.capabilities.includes('changelog_sync')) {
+					if (performer.capabilities.includes('changelog_sync')) {
 						count++;
 					}
 				}
 				if (!params.type || params.type === 'conversation') {
-					if (node.capabilities.includes('conversation_sync')) {
+					if (performer.capabilities.includes('conversation_sync')) {
 						count++;
 					}
 				}
@@ -270,7 +271,7 @@ export class ActService {
 			
 			return count;
 		} catch (error) {
-			Log.error(recordLogger, 'Failed to count records:', error);
+			Log.error(actLogger, 'Failed to count records:', error);
 			return 0;
 		}
 	}
@@ -283,35 +284,35 @@ export class ActService {
 			const results: SearchResult[] = [];
 			const query = params.query.toLowerCase();
 			
-			const allNodes = this.territoryAccess.getAllNodes();
+			const allPerformers = this.territoryAccess.getAllPerformers();
 			
-			for (const node of allNodes) {
+			for (const performer of allPerformers) {
 				if (params.territories.length > 0 && 
-					!params.territories.includes(node.territoryName)) {
+					!params.territories.includes(performer.territoryName)) {
 					continue;
 				}
 				
 				const searchableText = `
-					${ node.territoryName } 
-					${ node.nodeId } 
-					${ node.endpoint } 
-					${ node.capabilities.join(' ') }
+					${ performer.territoryName } 
+					${ performer.performerId } 
+					${ performer.endpoint } 
+					${ performer.capabilities.join(' ') }
 				`.toLowerCase();
 				
 				if (searchableText.includes(query)) {
 					results.push({
-						id: `search-result-${ node.nodeId }`,
-						title: `${ node.territoryName } Territory Node`,
-						type: 'network_node',
-						territory: node.territoryName,
+						id: `search-result-${ performer.performerId }`,
+						title: `${ performer.territoryName } Territory Performer`,
+						type: 'network_performer',
+						territory: performer.territoryName,
 						content: `
-							Node ID: ${ node.nodeId }
-							Endpoint: ${ node.endpoint }
-							Capabilities: ${ node.capabilities.join(', ') }
+							Performer ID: ${ performer.performerId }
+							Endpoint: ${ performer.endpoint }
+							Capabilities: ${ performer.capabilities.join(', ') }
 						`,
-						matchedFields: ['territoryName', 'nodeId', 'capabilities'],
+						matchedFields: ['territoryName', 'performerId', 'capabilities'],
 						relevance: 0.8,
-						lastSeen: node.lastSeen as string
+						lastSeen: performer.lastSeen as string
 					});
 				}
 			}
@@ -321,7 +322,7 @@ export class ActService {
 				.slice(0, params.limit);
 			
 		} catch (error) {
-			Log.error(recordLogger, 'Search failed:', error);
+			Log.error(actLogger, 'Search failed:', error);
 			return [];
 		}
 	}
@@ -376,7 +377,7 @@ export class ActService {
 			};
 			
 		} catch (error) {
-			Log.error(recordLogger, `Network request failed to ${url}:`, error);
+			Log.error(actLogger, `Network request failed to ${url}:`, error);
 			return { ok: false, status: 500 };
 		}
 	}

@@ -8,11 +8,11 @@
  * - AuthenticationResult - structure for authentication result
  */
 
-import { Certificate } from "./certificate-store-types";
+import { Certificate } from './certificate-store-types';
 
 export interface AuthenticationContext {
 	pluginId: string;
-	nodeId: string;
+	performerId: string;
 	territory: string;
 	apiKey?: string;
 	certificate?: Certificate;
@@ -22,7 +22,7 @@ export interface AuthenticationResult {
 	authenticated: boolean;
 	identity?: {
 		pluginId: string;
-		nodeId: string;
+		performerId: string;
 		territory: string;
 	};
 	error?: string;

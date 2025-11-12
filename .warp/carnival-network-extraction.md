@@ -31,10 +31,10 @@ Local REST API Plugin
 | cleanup() | leaveRing() |
 | isInitialized() | isPerforming() |
 | Records | Acts |
-| Nodes | Territory Nodes |
+| Performers | Territory Performers |
 | Status: online/offline/degraded | performing/intermission/finale |
 | Registered Clients | Performers |
-| Node Registration | Establishing Territory |
+| Performer Registration | Establishing Territory |
 | Discovery | Scouting Territories |
 
 ## 📦 What Moves to Carnival Network
@@ -52,7 +52,7 @@ src/
 │   ├── http-client.ts
 │   ├── http-network-protocol.ts
 │   ├── circuit-breaker.ts
-│   ├── persistent-node-cache.ts
+│   ├── persistent-performer-cache.ts
 │   ├── registry-endpoint-manager.ts
 │   ├── certificate-store.ts
 │   ├── validation.ts
@@ -85,7 +85,7 @@ export default class CarnivalNetworkPlugin extends Plugin {
   public joinCarnival(
     performerId: string,
     storage: APIKeyStorage,
-    config: CarnivalConfiguration
+    config: CarnivalConfig
   ): ICarnivalNetworkClient;
   
   // Get list of performers
@@ -109,7 +109,7 @@ export interface ICarnivalNetworkClient {
 
   // Territory Management
   establishTerritory(territory: string): Promise<void>;
-  scoutTerritories(territory: string): Promise<TerritoryNode[]>;
+  scoutTerritories(territory: string): Promise<RegistryEntry[]>;
   updatePerformanceStatus(status: Partial<PerformanceStatus>): Promise<void>;
 
   // Act Operations
@@ -124,8 +124,8 @@ export interface ICarnivalNetworkClient {
   getActService(): IActService;
 
   // Configuration
-  getShowConfiguration(): CarnivalConfiguration;
-  updateShowConfiguration(config: Partial<CarnivalConfiguration>): void;
+  getShowConfiguration(): CarnivalConfig;
+  updateShowConfiguration(config: Partial<CarnivalConfig>): void;
 }
 ```
 
@@ -153,7 +153,7 @@ async onload() {
 
   // 5. Use network features
   await this.carnivalNetwork.establishTerritory('backstage');
-  const nodes = await this.carnivalNetwork.scoutTerritories('backstage');
+  const performers = await this.carnivalNetwork.scoutTerritories('backstage');
 }
 
 async onunload() {
@@ -166,7 +166,7 @@ async onunload() {
 ### Generic Base Class
 ```typescript
 // handlers/webhook-handlers.ts
-export interface IWebhookHandler {
+export interface WebhookHandlerInterface {
   handleIncoming(payload: unknown): Promise<void>;
   formatOutgoing(record: CarnivalRecord): unknown;
   verify(payload: unknown, signature: string): boolean;
@@ -176,7 +176,7 @@ export interface IWebhookHandler {
 ### Specific Implementations
 ```typescript
 // handlers/discord-webhook-handler.ts
-export class DiscordWebhookHandler implements IWebhookHandler {
+export class DiscordWebhookHandler implements WebhookHandlerInterface {
   async handleIncoming(payload: DiscordPayload): Promise<void> {
     // Discord-specific logic
   }
@@ -187,7 +187,7 @@ export class DiscordWebhookHandler implements IWebhookHandler {
 }
 
 // handlers/slack-webhook-handler.ts (future)
-export class SlackWebhookHandler implements IWebhookHandler {
+export class SlackWebhookHandler implements WebhookHandlerInterface {
   // Slack-specific implementation
 }
 ```
@@ -203,9 +203,9 @@ export class SlackWebhookHandler implements IWebhookHandler {
 ### Type Renames
 1. `CrossVaultRecord` → `CarnivalRecord`
 2. `RecordService` → `ActService`
-3. `RegistryNode` → `TerritoryNode`
+3. `RegistryNode` → `RegistryEntry`
 4. `NodeStatus` → `PerformanceStatus`
-5. `NetworkConfiguration` → `CarnivalConfiguration`
+5. `NetworkConfiguration` → `CarnivalConfig`
 
 ### Update Imports
 All internal files need to import from `../types` instead of referencing Carnival Records types.

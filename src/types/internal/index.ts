@@ -14,7 +14,9 @@ export * from './authentication-types';
 /**
  * Certificate exports
  * - Certificate
+ * - CertificateInfo
  * - CertificateValidationResult
+ * - TrustedCertificate
  */
 export * from './certificate-store-types';
 
@@ -43,6 +45,13 @@ export * from './error-types';
 export * from './http-client';
 
 /**
+ * Logger exports
+ * - LogEntry
+ * - LogConfig
+ */
+export * from './logger-types';
+
+/**
  * Network Protocol exports
  * - MessageMetadata
  * - MessageType
@@ -51,11 +60,10 @@ export * from './http-client';
 export * from './network-protocol-types';
 
 /**
- * Node Cache exports
+ * Performer Cache exports
  * - CacheStatistics
- * - NodeCacheEntry
  */
-export * from './node-cache-types';
+export * from './performer-cache-types';
 
 /**
  * Performance Metrics exports
@@ -73,7 +81,7 @@ export * from './rate-limiter-types';
 
 /**
  * Registry Internal exports
- * - CachedNode
+ * - CachedPerformer
  * - RegistryCache
  * - RegistryEndpoint
  */

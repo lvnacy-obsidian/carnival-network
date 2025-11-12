@@ -1,26 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { App } from 'obsidian';
-import { Log } from '../utils/logger.js';
+import { Log } from '../utils/logger';
 import {
 	fetchWithRetry
 } from './http-client';
 import {
 	validateRegistryResponse,
-	validateNetworkNodes,
+	validatePerformers,
 	ValidationError
 } from './validation';
 import { RegistryEndpointManager } from './registry-endpoint-manager';
 import { certificateStore } from './certificate-store';
-import { PersistentNodeCache } from './persistent-node-cache';
+import { PersistentPerformerCache } from './persistent-performer-cache.js';
+import type { TrustedCertificate } from '../types/internal';
 import type {
 	APIKeyStorage,
-	CacheConfig,
-	CacheMetrics,
-	NetworkNode,
-	NetworkConfiguration,
-	TLSConfig,
-	TrustedCertificate
-} from '../types/public/index.js';
+	CarnivalConfig,
+	Performer,
+	RegistryEntry,
+	PerformerRegistrationInfo,
+	TerritoryServiceInterface,
+	TLSConfig
+} from '../types/public';
 
 
 const httpRegistryLogger = {
@@ -29,15 +30,15 @@ const httpRegistryLogger = {
 };
 
 /**
- * 📡 HTTP Registry Service - Centralized node discovery and coordination
+ * 📡 HTTP Registry Service - Centralized performer discovery and coordination
  * 
  * This service manages network topology through HTTP/s endpoints, enabling
  * dynamic discovery of carnival territories and maintaining synchronized
- * operational intelligence across all connected vault nodes.
+ * operational intelligence across all connected vault performers.
  */
-export class HttpRegistryService {
+export class HttpRegistryService implements TerritoryServiceInterface {
 	private app: App;
-	private config: NetworkConfiguration;
+	private config: CarnivalConfig;
 	private registryEndpoints: string[] = [];
 	private localApiPort: number = 27123;
 	private localApiKey: string = '';
@@ -45,28 +46,20 @@ export class HttpRegistryService {
 	private endpointManager?: RegistryEndpointManager;
 	private tlsConfig?: TLSConfig;
 	private storage: APIKeyStorage;
-	nodeCache: PersistentNodeCache;
+	private performerCache: PersistentPerformerCache;
+	private currentPerformer: Performer | null = null;
 
 	constructor(
 		app: App,
-		config: NetworkConfiguration,
-		storage: APIKeyStorage
+		config: CarnivalConfig,
+		storage: APIKeyStorage,
+		performerCache: PersistentPerformerCache
 	) {
 		this.app = app;
 		this.config = config;
 		this.storage = storage;
+		this.performerCache = performerCache;
 		this.tlsConfig = config.tlsConfig;
-		
-		// Initialize persistent node cache with configuration
-		const cacheConfig: Partial<CacheConfig> = {
-			maxSize: config.cacheConfig?.maxSize ?? 1000,
-			defaultTtlMs: config.cacheConfig?.defaultTtlMs ?? (30 * 60 * 1000),
-			persistenceEnabled: config.cacheConfig?.persistenceEnabled ?? true,
-			persistenceKey: config.cacheConfig?.persistenceKey ?? 'carnival-node-registry-cache',
-			backgroundSaveIntervalMs: config.cacheConfig?.backgroundSaveIntervalMs ?? (5 * 60 * 1000),
-			compressionEnabled: config.cacheConfig?.compressionEnabled ?? true
-		};
-		this.nodeCache = new PersistentNodeCache(app, cacheConfig);
 		
 		this.initializeRegistry();
 	}
@@ -116,125 +109,139 @@ export class HttpRegistryService {
 		}
 	}
 
-	/***********************
-	 * HEARTBEAT UTILITIES *
-	 ***********************/
+	/**
+	 * ============================================================================
+	 * PUBLIC API - TerritoryServiceInterface Implementation
+	 * ============================================================================
+	 */
 
 	/**
-	 * Start heartbeat to maintain registry presence
+	 * Unregister performer from registries
 	 */
-	private startHeartbeat(): void {
-		// Clear any existing heartbeat
+	async abandonTerritory(): Promise<void> {
+		const currentPerformer = await this.getCurrentPerformerInfo();
+		
 		this.stopHeartbeat();
 
-		// Send heartbeat every 30 seconds
-		const heartbeatInterval = setInterval(async () => {
-			await this.sendHeartbeat();
-		}, 30000);
-
-		this.heartbeatIntervals.set('main', heartbeatInterval);
+		for (const registryUrl of this.registryEndpoints) {
+			try {
+				await this.makeAPIRequest(registryUrl, '/carnival/network/registry', 'DELETE', {
+					performer: currentPerformer,
+					action: 'unregister'
+				});
+			} catch (error) {
+				Log.error(httpRegistryLogger, `📡 Failed to unregister from ${ registryUrl }:`, error);
+			}
+		}
 	}
 
 	/**
-	 * Send heartbeat to all registries
+	 * Broadcast performer update to registries
 	 */
-	private async sendHeartbeat(): Promise<void> {
-		const currentNode = await this.getCurrentNodeInfo();
+	async broadcastPerformerUpdate(updatedPerformer: Performer): Promise<void> {
+		for (const registryUrl of this.registryEndpoints) {
+			try {
+				await this.makeAPIRequest(registryUrl, '/carnival/network/registry', 'PUT', {
+					performer: updatedPerformer,
+					action: 'update'
+				});
+			} catch (error) {
+				Log.error(httpRegistryLogger, `📡 Failed to update performer in ${ registryUrl }:`, error);
+			}
+		}
+	}
+
+	/**
+	 * Register current performer with network registries
+	 */
+	async establishTerritory(territory: string, performerInfo: PerformerRegistrationInfo): Promise<void> {
+		// Build a full Performer object
+		const performer: Performer = {
+			id: performerInfo.performerId,
+			name: this.app.vault.getName(),
+			territory: performerInfo.territoryName,
+			lastSeen: new Date().toISOString(),
+			capabilities: performerInfo.capabilities,
+			metadata: {
+				apiHost: 'localhost',
+				apiPort: this.localApiPort,
+				useHttps: false,
+				...(performerInfo.metadata ?? {})
+			}
+		};
 		
 		for (const registryUrl of this.registryEndpoints) {
 			try {
-				await this.makeApiRequest(registryUrl, '/carnival/network/heartbeat', 'POST', {
-					node: currentNode,
-					timestamp: new Date().toISOString()
-				});
+				await this.registerWithRegistry(registryUrl, performer);
+				Log.log(httpRegistryLogger, `📡 Registered with registry: ${ registryUrl }`);
 			} catch (error) {
-				Log.error(httpRegistryLogger, `📡 Heartbeat failed for ${ registryUrl }:`, error);
+				Log.error(httpRegistryLogger, `📡 Failed to register with ${registryUrl}:`, error);
 			}
 		}
+
+		// Start periodic heartbeat
+		this.startHeartbeat();
 	}
 
 	/**
-	 * Stop heartbeat
+	 * Find performer by criteria
 	 */
-	private stopHeartbeat(): void {
-		for (const interval of this.heartbeatIntervals.values()) {
-			clearInterval(interval);
+	findPerformers(criteria: {
+		id?: string;
+		name?: string;
+		territory?: string;
+		capabilities?: string[];
+	}): Performer | null {
+		// If searching by ID specifically, use cache directly
+		if (criteria.id && !criteria.name && !criteria.territory && !criteria.capabilities) {
+			return this.performerCache.get(criteria.id);
 		}
-		this.heartbeatIntervals.clear();
-	}
+		
+		for (const performer of this.performerCache.values()) {
+			let matches = true;
 
-	/***************************
-	 * NODE REGISTRY UTILITIES *
-	 ***************************/
+			switch(true) {
+				case criteria.id && performer.id !== criteria.id:
+					matches = false;
+					break;
+				case criteria.name && performer.name !== criteria.name:
+					matches = false;
+					break;
+				case criteria.territory && performer.territory !== criteria.territory:
+					matches = false;
+					break;
+				default:
+					break;
+			}
+				
+			if (criteria.capabilities) {
+				const hasCapabilities = criteria.capabilities.every(cap => 
+					performer.capabilities.includes(cap)
+				);
 
-	/**
-	 * Count active registries
-	 */
-	private async countActiveRegistries(): Promise<number> {
-		let activeCount = 0;
-
-		// If we have an endpoint manager, rely on its state instead of probing every registry
-		if (this.endpointManager) {
-			const states = this.endpointManager.getEndpointStates();
-
-			for (const [, state] of states) {
-
-				if (state === 'closed') {
-					activeCount++;
+				if (!hasCapabilities) {
+					matches = false;
 				}
-
 			}
 
-			return activeCount;
-		}
-
-		// Fallback: probe each registry
-		for (const registryUrl of this.registryEndpoints) {
-			try {
-				const response = await this.makeApiRequest(registryUrl, '/ping', 'GET');
-
-				if (response.ok) {
-					activeCount++;
-				}
-
-			} catch(error) {
-				Log.error(httpRegistryLogger, 'Registry not responding', error);
+			if (matches) {
+				return performer;
 			}
 		}
 
-		return activeCount;
+		return null;
 	}
 
 	/**
-	 * Get default registry endpoints based on common carnival configurations
+	 * Find performers by territory
 	 */
-	private getDefaultRegistryEndpoints(): string[] {
-		return [
-			'http://192.168.1.100:27123', // Common local network address
-			'http://10.0.0.100:27123',    // Alternative local network
-			// Add more known carnival territory endpoints
-		];
+	findPerformersByTerritory(territory: string): Performer[] {
+		return this.performerCache.values()
+			.filter(performer => performer.territory === territory);
 	}
 
-	/**
-	 * Get secure API key for registry authentication
-	 */
-	private async getRegistryApiKey(registryUrl: string): Promise<string | null> {
-		try {
-			// Try to get registry-specific key first
-			const registryKey = await this.storage.retrieve(`registry_${registryUrl}`);
-
-			if (registryKey) {
-				return registryKey;
-			}
-
-			// Fall back to local API key
-			return this.localApiKey || null;
-
-		} catch (error) {
-			Log.warn(httpRegistryLogger, 'Failed to retrieve secure API key:', error);
-			return this.localApiKey || null;
-		}
+	getAllPerformers(): RegistryEntry[] {
+		return this.performerCache.values().map(p => this.performerToRegistryEntry(p));
 	}
 
 	/**
@@ -266,12 +273,148 @@ export class HttpRegistryService {
 		return this.endpointManager.getMetrics();
 	}
 
+	isAvailable(): boolean {
+		return this.registryEndpoints.length > 0 && this.currentPerformer !== null;
+	}
+
+	async scoutTerritories(territory: string): Promise<RegistryEntry[]> {
+		const performers = await this.discoverPerformers();
+
+		Log.log(httpRegistryLogger, `📡 Discovered ${ performers.length } performers across registries`);
+
+		return performers
+			.filter(p => p.territory === territory)
+			.map(p => this.performerToRegistryEntry(p));
+	}
+
 	/**
-	 * Query specific registry for nodes
+	 * Send heartbeat to all registries
 	 */
-	private async queryRegistry(registryUrl: string): Promise<NetworkNode[]> {
+	async sendHeartbeat(): Promise<void> {
+		const currentPerformer = await this.getCurrentPerformerInfo();
+		
+		for (const registryUrl of this.registryEndpoints) {
+			try {
+				await this.makeAPIRequest(registryUrl, '/carnival/network/heartbeat', 'POST', {
+					performer: currentPerformer,
+					timestamp: new Date().toISOString()
+				});
+				Log.log(httpRegistryLogger, `📡 Heartbeat sent to ${ registryUrl }`);
+			} catch (error) {
+				Log.error(httpRegistryLogger, `📡 Heartbeat failed for ${ registryUrl }:`, error);
+			}
+		}
+	}
+
+	/***********************
+	 * HEARTBEAT UTILITIES *
+	 ***********************/
+
+	/**
+	 * Start heartbeat to maintain registry presence
+	 */
+	private startHeartbeat(): void {
+		// Clear any existing heartbeat
+		this.stopHeartbeat();
+
+		// Send heartbeat every 30 seconds
+		const heartbeatInterval = setInterval(async () => {
+			await this.sendHeartbeat();
+		}, 30000);
+
+		this.heartbeatIntervals.set('main', heartbeatInterval);
+	}
+
+	/**
+	 * Stop heartbeat
+	 */
+	private stopHeartbeat(): void {
+		for (const interval of this.heartbeatIntervals.values()) {
+			clearInterval(interval);
+		}
+		this.heartbeatIntervals.clear();
+	}
+
+	/***************************
+	 * NODE REGISTRY UTILITIES *
+	 ***************************/
+
+	/**
+	 * Count active registries
+	 */
+	private async countActiveRegistries(): Promise<number> {
+		let activeCount = 0;
+
+		// If we have an endpoint manager, rely on its state instead of probing every registry
+		if (this.endpointManager) {
+			const states = this.endpointManager.getEndpointStates();
+
+			for (const [, state] of states) {
+
+				if (state === 'CLOSED') {
+					activeCount++;
+				}
+
+			}
+
+			return activeCount;
+		}
+
+		// Fallback: probe each registry
+		for (const registryUrl of this.registryEndpoints) {
+			try {
+				const response = await this.makeAPIRequest(registryUrl, '/ping', 'GET');
+
+				if (response.ok) {
+					activeCount++;
+				}
+
+			} catch(error) {
+				Log.error(httpRegistryLogger, 'Registry not responding', error);
+			}
+		}
+
+		return activeCount;
+	}
+
+	/**
+	 * Get default registry endpoints based on common carnival configurations
+	 */
+	private getDefaultRegistryEndpoints(): string[] {
+		return [
+			'http://192.168.1.100:27123', // Common local network address
+			'http://10.0.0.100:27123',    // Alternative local network
+			// Add more known carnival territory endpoints
+		];
+	}
+
+	/**
+	 * Get secure API key for registry authentication
+	 */
+	private async getRegistryAPIKey(registryUrl: string): Promise<string | null> {
+		try {
+			// Try to get registry-specific key first
+			const registryKey = await this.storage.retrieve(`registry_${registryUrl}`);
+
+			if (registryKey) {
+				return registryKey;
+			}
+
+			// Fall back to local API key
+			return this.localApiKey || null;
+
+		} catch (error) {
+			Log.warn(httpRegistryLogger, 'Failed to retrieve secure API key:', error);
+			return this.localApiKey || null;
+		}
+	}
+
+	/**
+	 * Query specific registry for performers
+	 */
+	private async queryRegistry(registryUrl: string): Promise<Performer[]> {
 		const endpoint = '/carnival/network/registry';
-		const response = await this.makeApiRequest(registryUrl, endpoint, 'GET');
+		const response = await this.makeAPIRequest(registryUrl, endpoint, 'GET');
 		
 		if (!response.ok) {
 			throw new Error(`Registry query failed: ${response.status}`);
@@ -280,8 +423,8 @@ export class HttpRegistryService {
 		try {
 			const data = await response.json();
 			validateRegistryResponse(data);
-			// After validation we know data has nodes array
-			return validateNetworkNodes((data as { nodes: unknown[] }).nodes);
+			// After validation we know data has performers array
+			return validatePerformers((data as { performers: unknown[] }).performers);
 		} catch (error) {
 			if (error instanceof ValidationError) {
 				Log.error(httpRegistryLogger, `📡 Invalid response from registry ${registryUrl}:`, error);
@@ -296,31 +439,12 @@ export class HttpRegistryService {
 	}
 
 	/**
-	 * Register current node with network registries
-	 */
-	async registerNode(): Promise<void> {
-		const currentNode = await this.getCurrentNodeInfo();
-		
-		for (const registryUrl of this.registryEndpoints) {
-			try {
-				await this.registerWithRegistry(registryUrl, currentNode);
-				Log.log(httpRegistryLogger, `📡 Registered with registry: ${ registryUrl }`);
-			} catch (error) {
-				Log.error(httpRegistryLogger, `📡 Failed to register with ${registryUrl}:`, error);
-			}
-		}
-
-		// Start periodic heartbeat
-		this.startHeartbeat();
-	}
-
-	/**
 	 * Register with specific registry
 	 */
-	private async registerWithRegistry(registryUrl: string, nodeInfo: NetworkNode): Promise<void> {
+	private async registerWithRegistry(registryUrl: string, performer: Performer): Promise<void> {
 		const endpoint = '/carnival/network/registry';
-		const response = await this.makeApiRequest(registryUrl, endpoint, 'POST', {
-			node: nodeInfo,
+		const response = await this.makeAPIRequest(registryUrl, endpoint, 'POST', {
+			performer: performer,
 			action: 'register'
 		});
 
@@ -332,7 +456,7 @@ export class HttpRegistryService {
 	/**
 	 * Remove stored API key for registry
 	 */
-	async removeRegistryApiKey(registryUrl: string): Promise<void> {
+	async removeRegistryAPIKey(registryUrl: string): Promise<void> {
 		try {
 			await this.storage.remove(`registry_${registryUrl}`);
 			Log.log(httpRegistryLogger, `Removed secure API key for registry: ${registryUrl}`);
@@ -345,7 +469,7 @@ export class HttpRegistryService {
 	/**
 	 * Store secure API key for registry
 	 */
-	async storeRegistryApiKey(registryUrl: string, apiKey: string): Promise<void> {
+	async storeRegistryAPIKey(registryUrl: string, apiKey: string): Promise<void> {
 		try {
 			await this.storage.store(`registry_${registryUrl}`, apiKey);
 			Log.log(httpRegistryLogger, `Stored secure API key for registry: ${registryUrl}`);
@@ -356,21 +480,21 @@ export class HttpRegistryService {
 	}
 
 	/**
-	 * Update local node registry
+	 * Update local performer registry
 	 */
-	private updateLocalRegistry(nodes: NetworkNode[]): void {
-		this.nodeCache.clear();
+	private updateLocalCache(performers: Performer[]): void {
+		this.performerCache.clear();
 		
-		for (const node of nodes) {
-			this.nodeCache.set(node.id, node);
+		for (const performer of performers) {
+			this.performerCache.set(performer.id, performer);
 		}
 	}
 
 	/**
-	 * Get registered nodes from local cache
+	 * Get registered performers from local cache
 	 */
-	getRegisteredNodes(): NetworkNode[] {
-		return this.nodeCache.values();
+	getRegisteredPerformers(): Performer[] {
+		return this.performerCache.values();
 	}
 
 	/**
@@ -408,134 +532,61 @@ export class HttpRegistryService {
 	 **************************/
 
 	/**
-	 * Broadcast node update to registries
+	 * Deduplicate performers by ID
 	 */
-	async broadcastNodeUpdate(updatedNode: NetworkNode): Promise<void> {
-		for (const registryUrl of this.registryEndpoints) {
-			try {
-				await this.makeApiRequest(registryUrl, '/carnival/network/registry', 'PUT', {
-					node: updatedNode,
-					action: 'update'
-				});
-			} catch (error) {
-				Log.error(httpRegistryLogger, `📡 Failed to update node in ${ registryUrl }:`, error);
-			}
-		}
-	}
-
-	/**
-	 * Deduplicate nodes by ID
-	 */
-	private deduplicateNodes(nodes: NetworkNode[]): NetworkNode[] {
-		const uniqueNodes = new Map<string, NetworkNode>();
+	private deduplicatePerformers(performers: Performer[]): Performer[] {
+		const uniquePerformers = new Map<string, Performer>();
 		
-		for (const node of nodes) {
-			const existing = uniqueNodes.get(node.id);
-			if (!existing || new Date(node.lastSeen) > new Date(existing.lastSeen)) {
-				uniqueNodes.set(node.id, node);
+		for (const performer of performers) {
+			const existing = uniquePerformers.get(performer.id);
+			if (!existing || new Date(performer.lastSeen) > new Date(existing.lastSeen)) {
+				uniquePerformers.set(performer.id, performer);
 			}
 		}
 		
-		return Array.from(uniqueNodes.values());
+		return Array.from(uniquePerformers.values());
 	}
 
 	/**
-	 * Discover all network nodes across registries
+	 * Discover all network performers across registries
 	 */
-	async discoverNetworkNodes(): Promise<NetworkNode[]> {
-		const discoveredNodes: NetworkNode[] = [];
+	private async discoverPerformers(): Promise<Performer[]> {
+		const discoveredPerformers: Performer[] = [];
 		
 		for (const registryUrl of this.registryEndpoints) {
 			try {
-				const nodes = await this.queryRegistry(registryUrl);
-				discoveredNodes.push(...nodes);
+				const performers = await this.queryRegistry(registryUrl);
+				discoveredPerformers.push(...performers);
 			} catch (error) {
 				Log.error(httpRegistryLogger, `📡 Failed to query registry ${ registryUrl }:`, error);
 			}
 		}
 
 		// Deduplicate and update local registry
-		const uniqueNodes = this.deduplicateNodes(discoveredNodes);
-		this.updateLocalRegistry(uniqueNodes);
+		const uniquePerformers = this.deduplicatePerformers(discoveredPerformers);
+		this.updateLocalCache(uniquePerformers);
 		
-		return uniqueNodes;
+		return uniquePerformers;
 	}
 
 	/**
-	 * Find node by criteria
+	 * Generate performer ID from path
 	 */
-	findNode(criteria: {
-		id?: string;
-		name?: string;
-		territory?: string;
-		capabilities?: string[];
-	}): NetworkNode | null {
-		// If searching by ID specifically, use cache directly
-		if (criteria.id && !criteria.name && !criteria.territory && !criteria.capabilities) {
-			return this.nodeCache.get(criteria.id);
-		}
-		
-		for (const node of this.nodeCache.values()) {
-			let matches = true;
-
-			switch(true) {
-				case criteria.id && node.id !== criteria.id:
-					matches = false;
-					break;
-				case criteria.name && node.name !== criteria.name:
-					matches = false;
-					break;
-				case criteria.territory && node.territory !== criteria.territory:
-					matches = false;
-					break;
-				default:
-					break;
-			}
-				
-			if (criteria.capabilities) {
-				const hasCapabilities = criteria.capabilities.every(cap => 
-					node.capabilities.includes(cap)
-				);
-
-				if (!hasCapabilities) {
-					matches = false;
-				}
-			}
-
-			if (matches) {
-				return node;
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * Find nodes by territory
-	 */
-	findNodesByTerritory(territory: string): NetworkNode[] {
-		return this.nodeCache.values()
-			.filter(node => node.territory === territory);
-	}
-
-	/**
-	 * Generate node ID from path
-	 */
-	private generateNodeIdFromPath(vaultPath: string): string {
+	private generatePerformerIdFromPath(vaultPath: string): string {
 		const hash = this.simpleHash(vaultPath);
-		return `carnival-node-${hash}`;
+		return `carnival-performer-${hash}`;
 	}
 
 	/**
-	 * Get current node information
+	 * Get current performer information
 	 */
-	private async getCurrentNodeInfo(): Promise<NetworkNode> {
+	private async getCurrentPerformerInfo(): Promise<Performer> {
 		const { vault } = this.app;
 		const vaultPath = (vault.adapter as any).path;
 		const territory = this.detectTerritory(vaultPath);
 		
 		return {
-			id: this.generateNodeIdFromPath(vaultPath),
+			id: this.generatePerformerIdFromPath(vaultPath),
 			name: vault.getName(),
 			territory,
 			capabilities: await this.detectCapabilities(),
@@ -552,60 +603,16 @@ export class HttpRegistryService {
 	}
 
 	/**
-	 * Unregister node from registries
+	 * Convert Performer to RegistryEntry (lightweight registry format)
 	 */
-	async unregisterNode(): Promise<void> {
-		const currentNode = await this.getCurrentNodeInfo();
-		
-		this.stopHeartbeat();
-
-		for (const registryUrl of this.registryEndpoints) {
-			try {
-				await this.makeApiRequest(registryUrl, '/carnival/network/registry', 'DELETE', {
-					node: currentNode,
-					action: 'unregister'
-				});
-			} catch (error) {
-				Log.error(httpRegistryLogger, `📡 Failed to unregister from ${ registryUrl }:`, error);
-			}
-		}
-	}
-
-	/*******************
-	 * CACHE UTILITIES *
-	 *******************/
-
-	/**
-	 * Get node cache performance metrics
-	 */
-	getCacheMetrics(): CacheMetrics & { hitRate: number } {
-		return this.nodeCache.getMetrics() as CacheMetrics & { hitRate: number };
-	}
-
-	/**
-	 * Update node cache configuration
-	 */
-	updateCacheConfig(config: Partial<CacheConfig>): void {
-		this.nodeCache.updateConfig(config);
-		Log.log(httpRegistryLogger, '📋 Node cache configuration updated:', config);
-	}
-
-	/**
-	 * Force flush cache to persistent storage
-	 */
-	async flushCache(): Promise<void> {
-		await this.nodeCache.flush();
-		Log.log(httpRegistryLogger, '📋 Node cache flushed to persistent storage');
-	}
-
-	/**
-	 * Get cache size and status
-	 */
-	getCacheStatus(): { size: number; maxSize: number; persistenceEnabled: boolean } {
+	private performerToRegistryEntry(performer: Performer): RegistryEntry {
 		return {
-			size: this.nodeCache.size(),
-			maxSize: this.nodeCache['config'].maxSize,
-			persistenceEnabled: this.nodeCache['config'].persistenceEnabled
+			performerId: performer.id,
+			territoryName: performer.territory,
+			endpoint: `http://${performer.metadata.apiHost ?? 'localhost'}:${performer.metadata.apiPort ?? 27123}`,
+			capabilities: performer.capabilities,
+			lastSeen: performer.lastSeen,
+			metadata: performer.metadata
 		};
 	}
 
@@ -616,6 +623,8 @@ export class HttpRegistryService {
 	/**
 	 * Add certificate to trust store
 	 */
+
+	/* eslint-disable require-await */
 	async addTrustedCertificate(
 		certPEM: string, 
 		endpoints: string[], 
@@ -646,6 +655,7 @@ export class HttpRegistryService {
 
 		}
 	}
+	/* eslint-enable require-await */
 
 	/**
 	 * Export certificate trust store
@@ -696,7 +706,7 @@ export class HttpRegistryService {
 	 ******************/
 
 	/**
-	 * Detect node capabilities
+	 * Detect performer capabilities
 	 */
 	private detectCapabilities(): Promise<string[]> {
 		const capabilities = ['http_communication', 'record_sync'];
@@ -766,21 +776,21 @@ export class HttpRegistryService {
 	 * Get network topology overview
 	 */
 	async getNetworkTopology(): Promise<{
-		totalNodes: number;
+		totalPerformers: number;
 		territories: { [territory: string]: number };
 		capabilities: { [capability: string]: number };
 		activeRegistries: number;
 	}> {
-		const nodes = this.getRegisteredNodes();
+		const performers = this.getRegisteredPerformers();
 		const territories: { [territory: string]: number } = {};
 		const capabilities: { [capability: string]: number } = {};
 
-		for (const node of nodes) {
+		for (const performer of performers) {
 			// Count by territory
-			territories[node.territory] = (territories[node.territory] || 0) + 1;
+			territories[performer.territory] = (territories[performer.territory] || 0) + 1;
 			
 			// Count by capabilities
-			for (const capability of node.capabilities) {
+			for (const capability of performer.capabilities) {
 				capabilities[capability] = (capabilities[capability] || 0) + 1;
 			}
 		}
@@ -789,7 +799,7 @@ export class HttpRegistryService {
 		const activeRegistries = await this.countActiveRegistries();
 
 		return {
-			totalNodes: nodes.length,
+			totalPerformers: performers.length,
 			territories,
 			capabilities,
 			activeRegistries
@@ -799,7 +809,7 @@ export class HttpRegistryService {
 	/**
 	 * Make API request with authentication and TLS configuration
 	 */
-	private async makeApiRequest(
+	private async makeAPIRequest(
 		baseUrl: string,
 		endpoint: string,
 		method: string,
@@ -811,12 +821,12 @@ export class HttpRegistryService {
 		};
 
 		// Get API key securely
-		const apiKey = await this.getRegistryApiKey(baseUrl);
+		const apiKey = await this.getRegistryAPIKey(baseUrl);
 		if (apiKey) {
 			headers['Authorization'] = `Bearer ${apiKey}`;
 		}
 
-		// Convert NetworkConfiguration tlsConfig to TLSConfig
+		// Convert CarnivalConfig tlsConfig to TLSConfig
 		const tlsConfig: TLSConfig | undefined = this.tlsConfig ? {
 			enabled: this.tlsConfig.enabled,
 			caCertPath: this.tlsConfig.caCertPath,
@@ -877,9 +887,9 @@ export class HttpRegistryService {
 	 * Clean up registry service
 	 */
 	async cleanup(): Promise<void> {
-		await this.unregisterNode();
+		await this.abandonTerritory();
 		this.stopHeartbeat();
-		await this.nodeCache.cleanup();
+		await this.performerCache.cleanup();
 		Log.log(httpRegistryLogger, '📡 HTTP Registry Service: Cleanup complete');
 	}
 }

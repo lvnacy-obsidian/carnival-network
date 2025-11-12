@@ -4,19 +4,19 @@
  * ============================================================================
  * 
  * Index of exports:
- * - CachedNode - structure for a cached registry node
+ * - CachedPerformer - structure for a cached registry performer
  * - RegistryCache - structure for the registry cache
  * - RegistryEndpoint - structure for a registry endpoint
  */
 
-export interface CachedNode {
-	node: import('./index').RegistryNode;
+export interface CachedPerformer {
+	performer: import('./index').RegistryPerformer;
 	cachedAt: number;
 	expiresAt: number;
 }
 
 export interface RegistryCache {
-	nodes: Map<string, CachedNode>;
+	performers: Map<string, CachedPerformer>;
 	lastRefresh: number;
 	ttl: number;
 }

@@ -10,55 +10,55 @@
  */
 
 import {
-    PerformanceStatus,
-    TerritoryNode,
-    TerritoryNodeInfo
+	RegistryEntry,
+	PerformerRegistrationInfo
 } from './carnival-grounds-types';
+import { PerformanceStatus } from './carnival-performers-types';
 import {
-    CarnivalQuery,
-    QueryResult
+	CarnivalQuery,
+	QueryResult
 } from './query-types';
 import {
-    ActCountOptions,
-    ActQueryOptions,
-    CarnivalRecord,
-    CreateActParams,
+	ActCountOptions,
+	ActQueryOptions,
+	CarnivalRecord,
+	CreateActParams,
 } from './records-types';
 import {
-    SearchOptions,
-    SearchResult
+	SearchOptions,
+	SearchResult
 } from './search-types';
 
 /**
  * Act service interface - handles act (record) operations
  */
 export interface ActServiceInterface {
-    createAct(params: CreateActParams): CarnivalRecord;
-    broadcastAct(record: CarnivalRecord): Promise<void>;
-    queryActs(options: ActQueryOptions): CarnivalRecord[];
-    countActs(options: ActCountOptions): number;
-    performSearch(options: SearchOptions): SearchResult[];
-    generateActId(): string;
-    generateSummary(record: CarnivalRecord): string;
+	createAct(params: CreateActParams): CarnivalRecord;
+	broadcastAct(record: CarnivalRecord): Promise<void>;
+	queryActs(options: ActQueryOptions): CarnivalRecord[];
+	countActs(options: ActCountOptions): number;
+	performSearch(options: SearchOptions): SearchResult[];
+	generateActId(): string;
+	generateSummary(record: CarnivalRecord): string;
 }
 
 /**
  * Query service interface - handles cross-territory queries
  */
 export interface QueryServiceInterface {
-    queryTerritory(territory: string, query: CarnivalQuery): Promise<QueryResult>;
-    queryAllTerritories(query: CarnivalQuery): Promise<QueryResult[]>;
-    getNodeStatus(nodeId: string): Promise<PerformanceStatus | null>;
+	queryTerritory(territory: string, query: CarnivalQuery): Promise<QueryResult>;
+	queryAllTerritories(query: CarnivalQuery): Promise<QueryResult[]>;
+	getPerformerStatus(performerId: string): Promise<PerformanceStatus | null>;
 }
 
 /**
  * Territory service interface - handles territory communication
  */
 export interface TerritoryServiceInterface {
-    establishTerritory(territory: string, nodeInfo: TerritoryNodeInfo): Promise<void>;
-    scoutTerritories(territory: string): Promise<TerritoryNode[]>;
-    sendHeartbeat(nodeId: string): Promise<void>;
-    abandonTerritory(nodeId: string): Promise<void>;
-    isAvailable(): boolean;
-    getAllNodes(): TerritoryNode[];
+	establishTerritory(territory: string, performerInfo: PerformerRegistrationInfo): Promise<void>;
+	scoutTerritories(territory: string): Promise<RegistryEntry[]>;
+	sendHeartbeat(performerId: string): Promise<void>;
+	abandonTerritory(performerId: string): Promise<void>;
+	isAvailable(): boolean;
+	getAllPerformers(): RegistryEntry[];
 }

@@ -1,8 +1,18 @@
-// src/types/index.ts
 /**
  * Public types and interfaces for consuming plugins
  * These are the contracts that plugins using the Inter-Vault Network must follow
  */
+
+/**
+ * API Requst Types
+ * - APIRequest
+ * - AuthenticatedRequest
+ * - AuthenticationRequestBody
+ * - ActCreateRequestBody
+ * - FetchOptions
+ * - SearchRequestOptions
+ */
+export * from './api-request-types';
 
 /**
  * Obsidian Plugin Filler exports
@@ -13,26 +23,43 @@ export * from './app-plugin-filler';
 /**
  * Carnival Client exports
  * - CarnivalNetworkClientInterface
+ * - ExternalClient
  */
 export * from './carnival-client-types';
 
 /**
  * Carnival Configuration exports
- * - CarnivalConfiguration
- * - RateLimitConfiguration
- * - TLSConfiguration
- * - WebhookConfiguration
+ * - APIKeyConfig
+ * - CarnivalConfig
+ * - RateLimitConfig
+ * - TLSConfig
+ * - WebhookConfig
  * - WebhookHandlerConfig
  */
 export * from './carnival-configuration-types';
 
 /**
  * Carnival Grounds exports
- * - PerformanceStatus
- * - TerritoryNode
- * - TerritoryNodeInfo
+ * - PerformerRegistrationInfo
+ * - RegistryEntry
+ * - Territory
+ * - TerritoryDiscoveryOptions
  */
 export * from './carnival-grounds-types';
+
+/**
+ * Carnival Performers exports
+ * - Performer
+ * - PerformerCacheConfig
+ * - PerformerCacheEntry
+ * - PerformerCacheMetrics
+ * - PerformerInfo
+ * - PerformerMetadata
+ * - PerformerRatings
+ * - PerformanceStatus
+ * - PerformerType
+ */
+export * from './carnival-performers-types';
 
 /**
  * Carnival Service exports
@@ -57,6 +84,8 @@ export * from './network-ops-types';
 
 /**
  * Query exports
+ * - ActQueryParams
+ * - AnalyticsQueryParams
  * - CarnivalQuery
  * - QueryResult
  */
@@ -69,6 +98,7 @@ export * from './query-types';
  * - ActSyncPreferences
  * - CarnivalRecord
  * - CreateActParams
+ * - RecordMetadata
  */
 export * from './records-types';
 

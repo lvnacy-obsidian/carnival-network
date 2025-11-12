@@ -13,7 +13,7 @@
 - **`src/types/index.ts`** ✅ COMPLETE
   - Public API types with carnival terminology
   - `CarnivalNetworkClientInterface` interface
-  - `CarnivalConfiguration`, `CarnivalRecord`, `TerritoryNode`
+  - `CarnivalConfig`, `CarnivalRecord`, `RegistryEntry`
   - Service interfaces: `TerritoryServiceInterface`, `QueryServiceInterface`, `ActServiceInterface`
   
 - **`src/types/internal.ts`** ✅ COMPLETE
@@ -45,7 +45,7 @@ These files exist but need carnival theme applied:
 
 2. **`src/network/services/registry-access-service.ts`** → **`territory-access-service.ts`**
    - Rename class: `RegistryAccessService` → `TerritoryAccessService`
-   - Update type imports: `RegistryNode` → `TerritoryNode`
+   - Update type imports: `RegistryNode` → `RegistryEntry`
 
 3. **`src/network/services/network-query-service.ts`** → **`carnival-query-service.ts`**
    - Rename class: `NetworkQueryService` → `CarnivalQueryService`
@@ -60,7 +60,7 @@ These files probably work but need type import updates:
 
 1. **`src/network/http-registry-service.ts`**
    - Update imports from `../types`
-   - Change `RegistryNode` → `TerritoryNode` references
+   - Change `RegistryNode` → `RegistryEntry` references
 
 2. **`src/network/http-client.ts`**
    - Update type imports
@@ -71,7 +71,7 @@ These files probably work but need type import updates:
 4. **`src/network/circuit-breaker.ts`**
    - Update imports from `../types/internal`
 
-5. **`src/network/persistent-node-cache.ts`**
+5. **`src/network/persistent-performer-cache.ts`**
    - Update type imports
 
 6. **`src/network/registry-endpoint-manager.ts`**
@@ -159,7 +159,7 @@ carnival-network/
 │   │   ├── http-client.ts              🚧 UPDATE IMPORTS
 │   │   ├── http-network-protocol.ts    🚧 UPDATE IMPORTS
 │   │   ├── circuit-breaker.ts          🚧 UPDATE IMPORTS
-│   │   ├── persistent-node-cache.ts    🚧 UPDATE IMPORTS
+│   │   ├── persistent-performer-cache.ts    🚧 UPDATE IMPORTS
 │   │   ├── registry-endpoint-manager.ts 🚧 UPDATE IMPORTS
 │   │   ├── certificate-store.ts        🚧 UPDATE IMPORTS
 │   │   ├── validation.ts               🚧 UPDATE IMPORTS

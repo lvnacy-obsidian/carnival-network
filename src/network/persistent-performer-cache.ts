@@ -1,21 +1,21 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { App } from 'obsidian';
+import type { App } from 'obsidian';
 import { Log } from '../utils/logger';
-import { NotFoundError } from '../errors';
 import type {
-	CacheConfig,
-	CacheEntry,
-	CacheMetrics,
-	NetworkNode
+	LogContext,
+	Performer,
+	PerformerCacheConfig,
+	PerformerCacheEntry,
+	PerformerCacheMetrics
 } from '../types/public';
+import type { CacheStatistics } from '../types/internal';
 
-const cacheLogger = {
-	context: 'Persistent Node Cache',
-	path: '/.obsidian/plugins/carnival-records/src/network/persistent-node-cache'
+const cacheLogger: LogContext = {
+	context: 'Persistent Performer Cache',
+	path: '/.obsidian/plugins/carnival-network/src/network/persistent-performer-cache'
 };
 
 /**
- * 📋 Persistent Node Cache - LRU cache with TTL and optional persistent backing
+ * 🎭 Persistent Performer Cache - LRU cache with TTL and optional persistent backing
  * 
  * Replaces simple in-memory Map with intelligent caching that includes:
  * - LRU (Least Recently Used) eviction policy
@@ -24,22 +24,23 @@ const cacheLogger = {
  * - Performance metrics tracking
  * - Graceful degradation to memory-only mode
  */
-export class PersistentNodeCache {
-	private cache = new Map<string, CacheEntry>();
+export class PersistentPerformerCache {
+	private cache = new Map<string, PerformerCacheEntry>();
 	private accessOrder: string[] = [];
-	private config: CacheConfig;
-	private app: App;
-	private metrics: CacheMetrics;
+	private config: PerformerCacheConfig;
+	private metrics: PerformerCacheMetrics;
 	private persistenceInterval?: number;
 	private isDirty = false;
 
-	constructor(app: App, config: Partial<CacheConfig> = {}) {
-		this.app = app;
+	constructor(
+		private app: App,
+		config: Partial<PerformerCacheConfig> = {}
+	) {
 		this.config = {
 			maxSize: 1000,
 			defaultTtlMs: 30 * 60 * 1000, // 30 minutes
 			persistenceEnabled: true,
-			persistenceKey: 'carnival-node-registry-cache',
+			persistenceKey: 'carnival-performer-cache',
 			backgroundSaveIntervalMs: 5 * 60 * 1000, // 5 minutes
 			compressionEnabled: true,
 			...config
@@ -63,24 +64,24 @@ export class PersistentNodeCache {
 	 */
 	private async initializePersistence(): Promise<void> {
 		if (!this.config.persistenceEnabled) {
-			Log.log(cacheLogger, '📋 Persistent storage disabled - operating in memory-only mode');
+			Log.log(cacheLogger, '🎭 Persistent storage disabled - operating in memory-only mode');
 			return;
 		}
 
 		try {
-			await this.loadFromStorage();
+			await this.loadFromStorage(this.app);
 			this.startBackgroundSave();
-			Log.log(cacheLogger, `📋 Persistent cache initialized with ${this.cache.size} entries`);
+			Log.log(cacheLogger, `🎭 Persistent cache initialized with ${this.cache.size} performers`);
 		} catch (error) {
-			Log.error(cacheLogger, '📋 Failed to initialize persistence, falling back to memory-only:', error);
+			Log.error(cacheLogger, '🎭 Failed to initialize persistence, falling back to memory-only:', error);
 			this.config.persistenceEnabled = false;
 		}
 	}
 
 	/**
-	 * Get node from cache
+	 * Get performer from cache
 	 */
-	get(id: string): NetworkNode | null {
+	get(id: string): Performer | null {
 		this.metrics.totalOperations++;
 		const entry = this.cache.get(id);
 
@@ -90,32 +91,36 @@ export class PersistentNodeCache {
 		}
 
 		// Check TTL expiration
-		if (Date.now() > entry.createdAt + entry.ttl) {
+		const now = Date.now();
+		if (now > entry.addedAt + entry.ttl) {
 			this.delete(id);
 			this.metrics.misses++;
 			return null;
 		}
 
 		// Update access time and order
-		entry.accessedAt = Date.now();
+		entry.lastAccessed = now;
+		entry.accessCount++;
 		this.updateAccessOrder(id);
 		this.metrics.hits++;
 		
-		return entry.node;
+		return entry.performer;
 	}
 
 	/**
-	 * Set node in cache
+	 * Set performer in cache
 	 */
-	set(id: string, node: NetworkNode, ttlMs?: number): void {
+	set(id: string, performer: Performer, ttlMs?: number): void {
 		this.metrics.totalOperations++;
 		const now = Date.now();
 		const ttl = ttlMs ?? this.config.defaultTtlMs;
 
-		const entry: CacheEntry = {
-			node,
-			accessedAt: now,
-			createdAt: now,
+		const entry: PerformerCacheEntry = {
+			performer,
+			territory: performer.territory,
+			lastAccessed: now,
+			addedAt: now,
+			accessCount: 0,
 			ttl
 		};
 
@@ -131,7 +136,7 @@ export class PersistentNodeCache {
 	}
 
 	/**
-	 * Delete node from cache
+	 * Delete performer from cache
 	 */
 	delete(id: string): boolean {
 		this.metrics.totalOperations++;
@@ -145,7 +150,7 @@ export class PersistentNodeCache {
 	}
 
 	/**
-	 * Check if node exists in cache
+	 * Check if performer exists in cache
 	 */
 	has(id: string): boolean {
 		const entry = this.cache.get(id);
@@ -155,7 +160,7 @@ export class PersistentNodeCache {
 		}
 
 		// Check TTL expiration
-		if (Date.now() > entry.createdAt + entry.ttl) {
+		if (Date.now() > entry.addedAt + entry.ttl) {
 			this.delete(id);
 			return false;
 		}
@@ -164,19 +169,19 @@ export class PersistentNodeCache {
 	}
 
 	/**
-	 * Get all nodes from cache (excluding expired)
+	 * Get all performers from cache (excluding expired)
 	 */
-	values(): NetworkNode[] {
+	values(): Performer[] {
 		this.metrics.totalOperations++;
 		const now = Date.now();
-		const validNodes: NetworkNode[] = [];
+		const validPerformers: Performer[] = [];
 		const expiredKeys: string[] = [];
 
 		for (const [id, entry] of this.cache.entries()) {
-			if (now > entry.createdAt + entry.ttl) {
+			if (now > entry.addedAt + entry.ttl) {
 				expiredKeys.push(id);
 			} else {
-				validNodes.push(entry.node);
+				validPerformers.push(entry.performer);
 			}
 		}
 
@@ -185,7 +190,7 @@ export class PersistentNodeCache {
 			this.delete(key);
 		}
 
-		return validNodes;
+		return validPerformers;
 	}
 
 	/**
@@ -231,17 +236,17 @@ export class PersistentNodeCache {
 	 * Evict least recently used entry
 	 */
 	private evictLRU(): void {
-
 		if (this.accessOrder.length === 0) {
 			return;
 		}
 
 		const lruId = this.accessOrder[0];
+		const entry = this.cache.get(lruId);
 		this.cache.delete(lruId);
 		this.accessOrder.shift();
 		this.metrics.evictions++;
 		
-		Log.log(cacheLogger, `📋 Evicted LRU entry: ${lruId}`);
+		Log.log(cacheLogger, `🎭 Evicted LRU performer: ${entry?.performer.name ?? lruId}`);
 	}
 
 	/**
@@ -252,7 +257,7 @@ export class PersistentNodeCache {
 		const expiredKeys: string[] = [];
 
 		for (const [id, entry] of this.cache.entries()) {
-			if (now > entry.createdAt + entry.ttl) {
+			if (now > entry.addedAt + entry.ttl) {
 				expiredKeys.push(id);
 			}
 		}
@@ -269,7 +274,7 @@ export class PersistentNodeCache {
 		// Rough estimation of memory usage
 		let memoryUsage = 0;
 		for (const entry of this.cache.values()) {
-			memoryUsage += JSON.stringify(entry.node).length * 2; // Approximate character size
+			memoryUsage += JSON.stringify(entry.performer).length * 2; // Approximate character size
 		}
 		this.metrics.memoryUsage = memoryUsage;
 	}
@@ -284,7 +289,7 @@ export class PersistentNodeCache {
 
 		this.persistenceInterval = window.setInterval(async () => {
 			if (this.isDirty) {
-				await this.saveToStorage();
+				await this.saveToStorage(this.app);
 			}
 		}, this.config.backgroundSaveIntervalMs);
 	}
@@ -292,13 +297,13 @@ export class PersistentNodeCache {
 	/**
 	 * Load cache data from persistent storage
 	 */
-	private async loadFromStorage(): Promise<void> {
+	async loadFromStorage(app: App): Promise<void> {
 		if (!this.config.persistenceEnabled) {
 			return;
 		}
 
 		try {
-			const data = await this.app.vault.adapter.read(`${this.config.persistenceKey}.json`);
+			const data = await app.vault.adapter.read(`${this.config.persistenceKey}.json`);
 			const parsed = JSON.parse(data);
 			
 			this.metrics.storageReads++;
@@ -306,10 +311,12 @@ export class PersistentNodeCache {
 			if (parsed.cache && parsed.accessOrder) {
 				// Restore cache entries
 				for (const [id, entryData] of Object.entries(parsed.cache as Record<string, any>)) {
-					const entry: CacheEntry = {
-						node: entryData.node,
-						accessedAt: entryData.accessedAt,
-						createdAt: entryData.createdAt,
+					const entry: PerformerCacheEntry = {
+						performer: entryData.performer,
+						territory: entryData.territory,
+						lastAccessed: entryData.lastAccessed,
+						addedAt: entryData.addedAt,
+						accessCount: entryData.accessCount,
 						ttl: entryData.ttl
 					};
 					this.cache.set(id, entry);
@@ -322,12 +329,12 @@ export class PersistentNodeCache {
 				this.cleanupExpired();
 			}
 
-			Log.log(cacheLogger, `📋 Loaded ${this.cache.size} entries from persistent storage`);
-		} catch (error: any) {
+			Log.log(cacheLogger, `🎭 Loaded ${this.cache.size} performers from persistent storage`);
+		} catch (error) {
 			if (error.message.includes('ENOENT')) {
-				Log.log(cacheLogger, '📋 No existing cache file found - starting fresh');
+				Log.log(cacheLogger, '🎭 No existing cache file found - starting fresh');
 			} else {
-				Log.error(cacheLogger, '📋 Failed to load from storage:', error);
+				Log.error(cacheLogger, '🎭 Failed to load from storage:', error);
 			}
 		}
 	}
@@ -335,8 +342,7 @@ export class PersistentNodeCache {
 	/**
 	 * Save cache data to persistent storage
 	 */
-	private async saveToStorage(): Promise<void> {
-
+	async saveToStorage(app: App): Promise<void> {
 		if (!this.config.persistenceEnabled || !this.isDirty) {
 			return;
 		}
@@ -349,14 +355,14 @@ export class PersistentNodeCache {
 			};
 
 			const json = JSON.stringify(data, null, this.config.compressionEnabled ? 0 : 2);
-			await this.app.vault.adapter.write(`${this.config.persistenceKey}.json`, json);
+			await app.vault.adapter.write(`${this.config.persistenceKey}.json`, json);
 			
 			this.isDirty = false;
 			this.metrics.storageWrites++;
 			
-			Log.log(cacheLogger, `📋 Saved ${this.cache.size} entries to persistent storage`);
+			Log.log(cacheLogger, `🎭 Saved ${this.cache.size} performers to persistent storage`);
 		} catch (error) {
-			Log.error(cacheLogger, '📋 Failed to save to storage:', error);
+			Log.error(cacheLogger, '🎭 Failed to save to storage:', error);
 			// Don't disable persistence on single failure - might be temporary
 		}
 	}
@@ -365,13 +371,13 @@ export class PersistentNodeCache {
 	 * Force save to storage
 	 */
 	async flush(): Promise<void> {
-		await this.saveToStorage();
+		await this.saveToStorage(this.app);
 	}
 
 	/**
 	 * Get cache performance metrics
 	 */
-	getMetrics(): CacheMetrics {
+	getMetrics(): PerformerCacheMetrics & { hitRate: number } {
 		const hitRate = this.metrics.totalOperations > 0 
 			? (this.metrics.hits / this.metrics.totalOperations) * 100 
 			: 0;
@@ -379,7 +385,33 @@ export class PersistentNodeCache {
 		return {
 			...this.metrics,
 			hitRate: Math.round(hitRate * 100) / 100
-		} as CacheMetrics & { hitRate: number };
+		};
+	}
+
+	/**
+	 * Get cache statistics
+	 */
+	getStatistics(): CacheStatistics {
+		this.metrics.totalOperations++;
+		const performers = this.values();
+		const now = Date.now();
+		
+		let oldestEntry = now;
+		let newestEntry = 0;
+
+		for (const [, entry] of this.cache.entries()) {
+			oldestEntry = Math.min(oldestEntry, entry.addedAt);
+			newestEntry = Math.max(newestEntry, entry.lastAccessed);
+		}
+
+		return {
+			totalPerformers: performers.length,
+			hitRate: this.getMetrics().hitRate,
+			missRate: 100 - this.getMetrics().hitRate,
+			evictionCount: this.metrics.evictions,
+			oldestEntry: this.cache.size > 0 ? oldestEntry : undefined,
+			newestEntry: this.cache.size > 0 ? newestEntry : undefined
+		};
 	}
 
 	/**
@@ -400,7 +432,7 @@ export class PersistentNodeCache {
 	/**
 	 * Update cache configuration
 	 */
-	updateConfig(config: Partial<CacheConfig>): void {
+	updateConfig(config: Partial<PerformerCacheConfig>): void {
 		this.config = { ...this.config, ...config };
 		
 		// If persistence was enabled/disabled, handle appropriately
@@ -409,7 +441,7 @@ export class PersistentNodeCache {
 				this.initializePersistence();
 			} else if (!config.persistenceEnabled && this.persistenceInterval) {
 				clearInterval(this.persistenceInterval);
-				// this.persistenceInterval = undefined;
+				this.persistenceInterval = undefined;
 			}
 		}
 
@@ -418,23 +450,23 @@ export class PersistentNodeCache {
 			this.startBackgroundSave();
 		}
 
-		Log.log(cacheLogger, '📋 Cache configuration updated:', config);
+		Log.log(cacheLogger, '🎭 Cache configuration updated:', config);
 	}
 
 	/**
 	 * Filter cache entries by predicate function
 	 */
-	filter(predicate: (node: NetworkNode) => boolean): NetworkNode[] {
+	filter(predicate: (performer: Performer) => boolean): Performer[] {
 		this.metrics.totalOperations++;
 		const now = Date.now();
-		const results: NetworkNode[] = [];
+		const results: Performer[] = [];
 		const expiredKeys: string[] = [];
 
 		for (const [id, entry] of this.cache.entries()) {
-			if (now > entry.createdAt + entry.ttl) {
+			if (now > entry.addedAt + entry.ttl) {
 				expiredKeys.push(id);
-			} else if (predicate(entry.node)) {
-				results.push(entry.node);
+			} else if (predicate(entry.performer)) {
+				results.push(entry.performer);
 			}
 		}
 
@@ -449,9 +481,9 @@ export class PersistentNodeCache {
 	/**
 	 * Sort cache entries by comparison function
 	 */
-	sort(compareFn: (a: NetworkNode, b: NetworkNode) => number): NetworkNode[] {
-		const nodes = this.values();
-		return nodes.sort(compareFn);
+	sort(compareFn: (a: Performer, b: Performer) => number): Performer[] {
+		const performers = this.values();
+		return performers.sort(compareFn);
 	}
 
 	/**
@@ -460,18 +492,18 @@ export class PersistentNodeCache {
 	paginate(
 		page: number,
 		pageSize: number,
-		predicate?: (node: NetworkNode) => boolean
-	): { items: NetworkNode[]; total: number; page: number; pageSize: number; pages: number } {
+		predicate?: (performer: Performer) => boolean
+	): { items: Performer[]; total: number; page: number; pageSize: number; pages: number } {
 		this.metrics.totalOperations++;
 		
-		const nodes = predicate ? this.filter(predicate) : this.values();
-		const total = nodes.length;
+		const performers = predicate ? this.filter(predicate) : this.values();
+		const total = performers.length;
 		const pages = Math.ceil(total / pageSize);
 		const start = (page - 1) * pageSize;
 		const end = start + pageSize;
 
 		return {
-			items: nodes.slice(start, end),
+			items: performers.slice(start, end),
 			total,
 			page: Math.max(1, Math.min(page, pages)),
 			pageSize,
@@ -483,59 +515,21 @@ export class PersistentNodeCache {
 	 * Aggregate cache entries by grouping function and reducing values
 	 */
 	aggregate<K, V>(
-		groupByFn: (node: NetworkNode) => K,
-		reduceFn: (acc: V, node: NetworkNode) => V,
+		groupByFn: (performer: Performer) => K,
+		reduceFn: (acc: V, performer: Performer) => V,
 		initial: V
 	): Map<K, V> {
 		this.metrics.totalOperations++;
 		const groups = new Map<K, V>();
-		const nodes = this.values();
+		const performers = this.values();
 
-		for (const node of nodes) {
-			const key = groupByFn(node);
-
-			if (!groups.get(key)) {
-				throw new NotFoundError('Key is not found!');
-			}
-
+		for (const performer of performers) {
+			const key = groupByFn(performer);
 			const current = groups.has(key) ? groups.get(key) : JSON.parse(JSON.stringify(initial));
-			groups.set(key, reduceFn(current, node));
+			groups.set(key, reduceFn(current, performer));
 		}
 
 		return groups;
-	}
-
-	/**
-	 * Get statistics about cache entries
-	 */
-	getStats(): {
-		totalNodes: number;
-		oldestEntry?: number | undefined;
-		newestEntry?: number | undefined;
-		averageAccessCount?: number;
-	} {
-		this.metrics.totalOperations++;
-		const nodes = this.values();
-		const now = Date.now();
-		
-		let oldestEntry = now;
-		let newestEntry = 0;
-		let accessCounts = 0;
-		let count = 0;
-
-		for (const [, entry] of this.cache.entries()) {
-			oldestEntry = Math.min(oldestEntry, entry.createdAt);
-			newestEntry = Math.max(newestEntry, entry.accessedAt);
-			accessCounts += (entry.accessedAt - entry.createdAt);
-			count++;
-		}
-
-		return {
-			totalNodes: nodes.length,
-			oldestEntry: count > 0 ? oldestEntry : undefined,
-			newestEntry: count > 0 ? newestEntry : undefined,
-			averageAccessCount: count > 0 ? accessCounts / count : 0
-		};
 	}
 
 	/**
@@ -547,10 +541,10 @@ export class PersistentNodeCache {
 		}
 		
 		if (this.isDirty) {
-			await this.saveToStorage();
+			await this.saveToStorage(this.app);
 		}
 		
 		this.clear();
-		Log.log(cacheLogger, '📋 Cache cleanup complete');
+		Log.log(cacheLogger, '🎭 Performer cache cleanup complete');
 	}
 }

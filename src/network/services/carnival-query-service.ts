@@ -9,7 +9,7 @@ import type {
 	NetworkTopology,
 	PerformanceAnalytics,
 	RecordAnalytics,
-	RegistryNode,
+	RegistryEntry,
 	TerritoryAnalytics
 } from '../../types/public';
 
@@ -32,30 +32,30 @@ export class CarnivalQueryService {
 	 */
 	getNetworkTopology(): NetworkTopology {
 		try {
-			const allNodes = this.registryAccess.getAllNodes();
+			const allPerformers = this.registryAccess.getAllPerformers();
 			
 			const territories: Record<string, number> = {};
 			const allCapabilities = new Set<string>();
 			
-			for (const node of allNodes) {
-				territories[node.territoryName] = (territories[node.territoryName] || 0) + 1;
+			for (const performer of allPerformers) {
+				territories[performer.territoryName] = (territories[performer.territoryName] || 0) + 1;
 				
-				if (node.capabilities) {
-					node.capabilities.forEach(cap => allCapabilities.add(cap));
+				if (performer.capabilities) {
+					performer.capabilities.forEach(cap => allCapabilities.add(cap));
 				}
 			}
 			
 			const recentThreshold = Date.now() - (5 * 60 * 1000);
-			const activeRegistries = allNodes.filter(node => {
-				if (!node.lastSeen) {
+			const activeRegistries = allPerformers.filter(performer => {
+				if (!performer.lastSeen) {
 					return false;
 				}
-				return new Date(node.lastSeen).getTime() > recentThreshold;
+				return new Date(performer.lastSeen).getTime() > recentThreshold;
 			}).length;
 			
 			return {
 				territories,
-				totalNodes: allNodes.length,
+				totalPerformers: allPerformers.length,
 				activeRegistries,
 				capabilities: Array.from(allCapabilities),
 				lastUpdated: new Date().toISOString()
@@ -65,7 +65,7 @@ export class CarnivalQueryService {
 			Log.error(networkLogger, 'Failed to get network topology:', error);
 			return {
 				territories: {},
-				totalNodes: 0,
+				totalPerformers: 0,
 				activeRegistries: 0,
 				capabilities: [],
 				lastUpdated: new Date().toISOString()
@@ -81,24 +81,24 @@ export class CarnivalQueryService {
 	}
 
 	/**
-	 * Get count of connected nodes
+	 * Get count of connected performers
 	 */
-	getConnectedNodesCount(): number {
+	getConnectedPerformersCount(): number {
 		try {
-			const allNodes = this.registryAccess.getAllNodes();
+			const allPerformers = this.registryAccess.getAllPerformers();
 			
 			const recentThreshold = Date.now() - (10 * 60 * 1000);
-			const connectedNodes = allNodes.filter(node => {
-				if (!node.lastSeen) {
+			const connectedPerformers = allPerformers.filter(performer => {
+				if (!performer.lastSeen) {
 					return false;
 				}
-				return new Date(node.lastSeen).getTime() > recentThreshold;
+				return new Date(performer.lastSeen).getTime() > recentThreshold;
 			});
 			
-			return connectedNodes.length;
+			return connectedPerformers.length;
 			
 		} catch (error) {
-			Log.error(networkLogger, 'Failed to get connected nodes count:', error);
+			Log.error(networkLogger, 'Failed to get connected performers count:', error);
 			return 0;
 		}
 	}
@@ -111,33 +111,33 @@ export class CarnivalQueryService {
 			const activities = [];
 			const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 			
-			const allNodes = this.registryAccess.getAllNodes();
+			const allPerformers = this.registryAccess.getAllPerformers();
 			
-			for (const node of allNodes) {
-				if (node.discoveredAt) {
-					const discoveredTime = new Date(node.discoveredAt).getTime();
+			for (const performer of allPerformers) {
+				if (performer.discoveredAt) {
+					const discoveredTime = new Date(performer.discoveredAt).getTime();
 					if (discoveredTime > cutoffTime) {
 						activities.push({
-							id: `discovery-${node.nodeId}`,
-							timestamp: node.discoveredAt,
-							type: 'node_discovery' as const,
-							nodeId: node.nodeId,
-							territory: node.territoryName,
-							description: `Node ${node.nodeId} discovered in ${node.territoryName} territory`
+							id: `discovery-${performer.performerId}`,
+							timestamp: performer.discoveredAt,
+							type: 'performer_discovery' as const,
+							performerId: performer.performerId,
+							territory: performer.territoryName,
+							description: `Performer ${performer.performerId} discovered in ${performer.territoryName} territory`
 						});
 					}
 				}
 				
-				if (node.lastSeen) {
-					const lastSeenTime = new Date(node.lastSeen).getTime();
+				if (performer.lastSeen) {
+					const lastSeenTime = new Date(performer.lastSeen).getTime();
 					if (lastSeenTime > cutoffTime) {
 						activities.push({
-							id: `heartbeat-${node.nodeId}-${lastSeenTime}`,
-							timestamp: node.lastSeen,
-							type: 'node_heartbeat' as const,
-							nodeId: node.nodeId,
-							territory: node.territoryName,
-							description: `Heartbeat received from ${node.territoryName} (${node.capabilities.join(', ')})`
+							id: `heartbeat-${performer.performerId}-${lastSeenTime}`,
+							timestamp: performer.lastSeen,
+							type: 'performer_heartbeat' as const,
+							performerId: performer.performerId,
+							territory: performer.territoryName,
+							description: `Heartbeat received from ${performer.territoryName} (${performer.capabilities.join(', ')})`
 						});
 					}
 				}
@@ -167,24 +167,24 @@ export class CarnivalQueryService {
 	generateAnalytics(metrics: string[]): AnalyticsData {
 		try {
 			
-			const allNodes = this.registryAccess.getAllNodes();
+			const allPerformers = this.registryAccess.getAllPerformers();
 			
 			const analytics: AnalyticsData = {};
 			
 			if (metrics.includes('records')) {
-				analytics.records = this.generateRecordAnalytics(allNodes);
+				analytics.records = this.generateRecordAnalytics(allPerformers);
 			}
 			
 			if (metrics.includes('activity')) {
-				analytics.activity = this.generateActivityAnalytics(allNodes);
+				analytics.activity = this.generateActivityAnalytics(allPerformers);
 			}
 			
 			if (metrics.includes('capabilities')) {
-				analytics.capabilities = this.generateCapabilityAnalytics(allNodes);
+				analytics.capabilities = this.generateCapabilityAnalytics(allPerformers);
 			}
 			
 			if (metrics.includes('performance')) {
-				analytics.performance = this.generatePerformanceAnalytics(allNodes);
+				analytics.performance = this.generatePerformanceAnalytics(allPerformers);
 			}
 			
 			return analytics;
@@ -198,7 +198,7 @@ export class CarnivalQueryService {
 	/**
 	 * Generate activity analytics
 	 */
-	private generateActivityAnalytics(nodes: RegistryNode[]): ActivityAnalytics {
+	private generateActivityAnalytics(performers: RegistryEntry[]): ActivityAnalytics {
 		const now = Date.now();
 		const recentThreshold = now - (10 * 60 * 1000); // 10 minutes
 		const activeThreshold = now - (60 * 60 * 1000); // 1 hour
@@ -208,13 +208,13 @@ export class CarnivalQueryService {
 		let recentlyActive = 0;
 		const byTerritory: Record<string, number> = {};
 		
-		for (const node of nodes) {
-			if (!node.lastSeen) {
+		for (const performer of performers) {
+			if (!performer.lastSeen) {
 				inactive++;
 				continue;
 			}
 			
-			const lastSeenTime = new Date(node.lastSeen).getTime();
+			const lastSeenTime = new Date(performer.lastSeen).getTime();
 			
 			if (lastSeenTime > activeThreshold) {
 				active++;
@@ -225,8 +225,8 @@ export class CarnivalQueryService {
 				inactive++;
 			}
 			
-			// Count nodes per territory (regardless of activity status)
-			byTerritory[node.territoryName] = (byTerritory[node.territoryName] || 0) + 1;
+			// Count performers per territory (regardless of activity status)
+			byTerritory[performer.territoryName] = (byTerritory[performer.territoryName] || 0) + 1;
 		}
 		
 		return {
@@ -240,11 +240,11 @@ export class CarnivalQueryService {
 	/**
 	 * Generate capability analytics
 	 */
-	private generateCapabilityAnalytics(nodes: RegistryNode[]): CapabilityAnalytics {
+	private generateCapabilityAnalytics(performers: RegistryEntry[]): CapabilityAnalytics {
 		const distribution: CapabilityAnalytics = {};
 		
-		for (const node of nodes) {
-			for (const capability of node.capabilities ?? []) {
+		for (const performer of performers) {
+			for (const capability of performer.capabilities ?? []) {
 				distribution[capability] = (distribution[capability] ?? 0) + 1;
 			}
 		}
@@ -255,15 +255,15 @@ export class CarnivalQueryService {
 	/**
 	 * Generate performance analytics
 	 */
-	private generatePerformanceAnalytics(nodes: RegistryNode[]): PerformanceAnalytics {
+	private generatePerformanceAnalytics(performers: RegistryEntry[]): PerformanceAnalytics {
 		const uptime = this.getUptimeMs();
-		const territories = new Set(nodes.map(n => n.territoryName));
+		const territories = new Set(performers.map(n => n.territoryName));
 		
 		return {
 			uptimeMs: uptime,
 			uptimeHours: (uptime / (60 * 60 * 1000)).toFixed(2),
-			averageNodesPerTerritory: territories.size > 0
-				? (nodes.length / territories.size).toFixed(2)
+			averagePerformersPerTerritory: territories.size > 0
+				? (performers.length / territories.size).toFixed(2)
 				: '0',
 			totalTerritories: territories.size
 		};
@@ -272,41 +272,41 @@ export class CarnivalQueryService {
 	/**
 	 * Generate record analytics
 	 */
-	private generateRecordAnalytics(nodes: RegistryNode[]): RecordAnalytics {
+	private generateRecordAnalytics(performers: RegistryEntry[]): RecordAnalytics {
 		const byTerritory: Record<string, TerritoryAnalytics> = {};
 		
-		for (const node of nodes) {
+		for (const performer of performers) {
 			
-			byTerritory[node.territoryName] ??= {
-				nodeCount: 0,
+			byTerritory[performer.territoryName] ??= {
+				performerCount: 0,
 				capabilities: [],
 				lastSeen: null
 			};
 			
-			byTerritory[node.territoryName].nodeCount++;
+			byTerritory[performer.territoryName].performerCount++;
 			
 			// Merge capabilities
 			const capSet = new Set([
-				...byTerritory[node.territoryName].capabilities,
-				...node.capabilities
+				...byTerritory[performer.territoryName].capabilities,
+				...performer.capabilities
 			]);
-			byTerritory[node.territoryName].capabilities = Array.from(capSet);
+			byTerritory[performer.territoryName].capabilities = Array.from(capSet);
 			
 			// Update last seen
-			if (node.lastSeen) {
-				const currentLastSeen = byTerritory[node.territoryName].lastSeen;
-				if (!currentLastSeen || node.lastSeen > currentLastSeen) {
-					byTerritory[node.territoryName].lastSeen = node.lastSeen;
+			if (performer.lastSeen) {
+				const currentLastSeen = byTerritory[performer.territoryName].lastSeen;
+				if (!currentLastSeen || performer.lastSeen > currentLastSeen) {
+					byTerritory[performer.territoryName].lastSeen = performer.lastSeen;
 				}
 			}
 		}
 		
 		return {
-			total: nodes.length,
+			total: performers.length,
 			byTerritory,
 			byType: {
-				changelog: Math.ceil(nodes.length * 0.6),
-				conversation: Math.ceil(nodes.length * 0.4)
+				changelog: Math.ceil(performers.length * 0.6),
+				conversation: Math.ceil(performers.length * 0.4)
 			}
 		};
 	}

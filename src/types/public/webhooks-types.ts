@@ -28,7 +28,7 @@ export interface WebhookPayload {
 	data: unknown;
 	source: {
 		pluginId: string;
-		nodeId: string;
+		performerId: string;
 		territory: string;
 	};
 }

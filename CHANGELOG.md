@@ -1,0 +1,1441 @@
+# Carnival Network Plugin - Changelog
+
+**Project**: Obsidian Carnival Network Plugin  
+**Purpose**: Centralized network abstraction layer for distributed Obsidian vault coordination  
+**Last Updated**: 2025-11-11  
+**Current Status**: Phase 2 Complete, Refactoring & Documentation In Progress
+
+---
+
+## Document Purpose
+
+This changelog serves as a comprehensive reference for AI agents and developers working on the Carnival Network Plugin. It documents:
+- All architectural changes and refactoring efforts
+- Type system evolution and naming conventions
+- File structure reorganization
+- API design decisions and patterns
+- Documentation artifacts and their locations
+- Current state of the codebase with pending work
+
+**For AI Agents**: This document provides critical context about the project's evolution, current state, and design philosophy. Read this before making significant changes to understand the architectural direction.
+
+---
+
+## Table of Contents
+
+1. [Current State Summary](#current-state-summary)
+2. [Major Changes by Category](#major-changes-by-category)
+3. [Recent Session Work (2025-11-11)](#recent-session-work-2025-11-11)
+4. [Architecture Evolution](#architecture-evolution)
+5. [Type System Refactoring](#type-system-refactoring)
+6. [File Reorganization](#file-reorganization)
+7. [API Changes](#api-changes)
+8. [Documentation Structure](#documentation-structure)
+9. [Migration Guides](#migration-guides)
+10. [Known Issues & Technical Debt](#known-issues--technical-debt)
+11. [Roadmap Reference](#roadmap-reference)
+
+---
+
+## Current State Summary
+
+### Plugin Status
+- **Phase**: 2/5 Complete (Foundation + Advanced Infrastructure)
+- **Build Status**: Not yet compiled (significant uncommitted changes)
+- **Test Status**: Manual testing required
+- **Production Status**: Development/Refactoring
+
+### Major Systems
+- ✅ **Network Infrastructure**: Circuit breaker, HTTP client, registry service
+- ✅ **Persistence Layer**: LRU cache with vault-based persistence
+- ✅ **Type System**: Carnival-themed type hierarchy established
+- ⏳ **Public API**: Abstraction layer in progress
+- ❌ **External API Service**: Removed (stub implementations incomplete)
+- ❌ **HTTP Network Protocol**: Removed (superseded by refactored architecture)
+
+### Code Statistics (Uncommitted Changes)
+```
+Total Changes: 41 files
+Insertions:    1,240 lines
+Deletions:     3,281 lines
+Net Change:    -2,041 lines (significant simplification)
+```
+
+### Critical Dependencies
+- **Obsidian API**: Core plugin functionality
+- **Local REST API Plugin**: External HTTP communication
+- **Secure Storage Plugin**: API key management
+- **TypeScript**: Type safety and compilation
+
+---
+
+## Major Changes by Category
+
+### 1. Type System Overhaul
+
+#### **Carnival-Themed Naming Convention**
+Replaced generic network terminology with carnival metaphor throughout:
+
+| Old Term | New Term | Rationale |
+|----------|----------|-----------|
+| `NetworkNode` | `Performer` | Participants in the carnival |
+| `NetworkConfiguration` | `CarnivalConfiguration` | Global carnival settings |
+| `PersistentNodeCache` | `PersistentPerformerCache` | Cache of carnival performers |
+| `Territory` (overloaded) | `Territory` (locations) + `Performer` (participants) | Separation of concerns |
+| `PerformanceMetrics` | `PerformerRatings` | How well performers are doing |
+
+**Design Philosophy**: The carnival metaphor provides:
+- Intuitive mental model for distributed system
+- Clear separation between locations (territories) and participants (performers)
+- Consistent theming across all APIs and documentation
+- Better code readability and maintainability
+
+#### **Type File Reorganization**
+
+**New Structure**:
+```
+src/types/
+├── public/                          # External consumer API
+│   ├── api-request-types.ts        # NEW: API request/response types
+│   ├── carnival-client-types.ts    # Network client interfaces
+│   ├── carnival-configuration-types.ts  # Configuration schemas
+│   ├── carnival-grounds-types.ts   # Territory/location types
+│   ├── carnival-performers-types.ts # NEW: Performer/participant types
+│   ├── carnival-service-types.ts   # Service interfaces
+│   ├── network-ops-types.ts        # Network operation types
+│   ├── query-types.ts              # Query operation types
+│   ├── records-types.ts            # Record/Act types
+│   ├── search-types.ts             # Search operation types
+│   ├── webhooks-types.ts           # Webhook types
+│   └── index.ts                    # Public API exports
+│
+└── internal/                        # Internal implementation types
+    ├── authentication-types.ts      # Auth internal types
+    ├── certificate-store-types.ts   # Certificate management
+    ├── error-types.ts               # Error handling types
+    ├── logger-types.ts              # NEW: Logging types
+    ├── network-protocol-types.ts    # Protocol internals
+    ├── node-cache-types.ts          # Cache internals (→ performer-cache)
+    ├── registry-types.ts            # Registry internals
+    ├── validation-types.ts          # Validation types
+    └── index.ts                     # Internal exports
+```
+
+**Key Additions**:
+- `carnival-performers-types.ts`: Separated participant types from location types
+- `api-request-types.ts`: Standardized API request/response patterns
+- `logger-types.ts`: Structured logging type definitions
+
+**Separation Strategy**:
+- **Public types**: External consumers (other plugins) depend on these
+- **Internal types**: Implementation details, subject to change
+- **Index files**: Controlled exports for versioning
+
+### 2. Network Architecture Refactoring
+
+#### **Service Layer Abstraction**
+
+**Created**: `src/network/carnival-network.ts`
+- Purpose: Abstracted network client creation logic from plugin lifecycle
+- Pattern: Factory functions with plugin context binding
+- Key Functions:
+  - `joinCarnival()` - Create network client for consuming plugin
+  - `leaveCarnival()` - Cleanup network client resources
+  - `getPerformers()` - Query active performers
+  - `hasTroupe()` - Check if performer registered
+
+**Updated**: `src/main.ts`
+- Simplified plugin lifecycle management
+- Added public API methods for external plugins
+- Proper context binding via `.call(this, ...)`
+- Removed incorrect function bindings
+
+**Pattern**:
+```typescript
+// External plugin usage:
+const carnivalPlugin = app.plugins.plugins['carnival-network'];
+const client = carnivalPlugin.joinCarnival('my-plugin', storage, config);
+await client.enterRing();
+```
+
+#### **Removed Components**
+
+**File**: `src/network/external-api-service.ts` (422 lines deleted)
+- **Reason**: Stub implementations incomplete, Phase 3 work
+- **Status**: To be reimplemented in Phase 3 (Advanced API & External Integration)
+- **Impact**: No production code depended on these stubs
+
+**File**: `src/network/http-network-protocol.ts` (507 lines deleted)
+- **Reason**: Superseded by refactored carnival-themed architecture
+- **Status**: Functionality absorbed into `http-registry-service.ts`
+- **Impact**: Simplified communication layer
+
+**File**: `src/network/persistent-node-cache.ts` (556 lines deleted)
+- **Reason**: Renamed and refactored
+- **Replacement**: `src/network/persistent-performer-cache.ts`
+- **Status**: Fully migrated
+
+#### **Registry Service Refactoring**
+
+**File**: `src/network/http-registry-service.ts` (552 lines modified)
+
+**Changes**:
+- Implements `TerritoryServiceInterface` (formal contract)
+- Uses `PersistentPerformerCache` instead of `PersistentNodeCache`
+- Public API methods aligned with carnival metaphor:
+  - `establishTerritory()` - Register performer in territory
+  - `scoutTerritories()` - Discover performers in territory
+  - `sendHeartbeat()` - Keep performer registration alive
+  - `abandonTerritory()` - Unregister performer
+  - `getAllNodes()` - Query all registered performers
+  - `isAvailable()` - Check service availability
+
+**Internal Method Renames**:
+- `registerNode()` → internal helper for `establishTerritory()`
+- `discoverNetworkNodes()` → `discoverPerformers()`
+- `updateLocalRegistry()` → `updateLocalCache()`
+- `deduplicateNodes()` → `deduplicatePerformers()`
+- `findNodesByTerritory()` → `findPerformersByTerritory()`
+
+**Conversion Helper Added**:
+```typescript
+private performerToRegistryEntry(performer: Performer): RegistryEntry {
+  // Converts full Performer to lightweight RegistryEntry
+}
+```
+
+### 3. Service Layer Clarification
+
+#### **Territory Services Architecture**
+
+Three distinct service layers documented:
+
+**1. `TerritoryServiceInterface` (Contract)**
+- Location: `src/types/public/carnival-service-types.ts`
+- Purpose: Formal contract for territory service implementations
+- Methods: `establishTerritory()`, `scoutTerritories()`, `sendHeartbeat()`, etc.
+
+**2. `HttpRegistryService` (Implementation)**
+- Location: `src/network/http-registry-service.ts`
+- Purpose: Full implementation with network operations
+- Features: Network coordination, performer registration, heartbeat management, TLS/certificate management
+- Implements: `TerritoryServiceInterface` ✅
+
+**3. `TerritoryAccessService` (Query Layer)**
+- Location: `src/network/services/territory-access-service.ts`
+- Purpose: Read-only cache queries for territory data
+- Features: Territory filtering, capability filtering, no network operations
+- Implements: `TerritoryServiceInterface` ❌ (intentionally separate)
+
+**Key Distinction**:
+| Aspect | HttpRegistryService | TerritoryAccessService |
+|--------|:-------------------:|:----------------------:|
+| Implements Interface | ✓ | ✗ |
+| Network Operations | ✓ | ✗ |
+| Active Management | ✓ | ✗ |
+| Query/Read-only | ✓ | ✓ |
+| Sync with Cache | Writes | Reads |
+
+**Documentation**: `.github/docs/territory-services-architecture.md`
+
+### 4. Client API Refactoring
+
+#### **Carnival Network Client**
+
+**File**: `src/network/carnival-network-client.ts` (133 lines modified)
+
+**Changes**:
+- Updated to use `Performer` types instead of `NetworkNode`
+- Implements `CarnivalNetworkClientInterface`
+- Core methods:
+  - `enterRing()` - Initialize network client
+  - `exitRing()` - Cleanup and shutdown
+  - `broadcastAct()` - Send record to network
+  - `queryActs()` - Query records from network
+  - `searchCarnival()` - Cross-vault search
+
+**Integration Points**:
+- Uses `HttpRegistryService` for performer discovery
+- Uses `PersistentPerformerCache` for local data
+- Uses `CircuitBreaker` for resilience
+- Uses `CertificateStore` for TLS
+
+### 5. Validation & Error Handling
+
+#### **Validation Layer Updates**
+
+**File**: `src/network/validation.ts` (62 lines modified)
+
+**Changes**:
+- `validateNetworkNodes()` → `validatePerformers()`
+- Type guards updated for carnival types
+- Validation for `Performer`, `RegistryEntry`, `PerformerInfo`
+
+**Error Type Updates**:
+
+**File**: `src/types/internal/error-types.ts` (7 lines modified)
+
+**New Error Types**:
+- `PerformerRegistrationError` - Registration failures
+- `TerritoryDiscoveryError` - Discovery failures
+- `HeartbeatError` - Heartbeat failures
+
+### 6. Supporting Services
+
+#### **Certificate Store**
+
+**File**: `src/network/certificate-store.ts` (33 lines modified)
+- Updated to use carnival configuration types
+- TLS/mTLS certificate management
+- Trust store validation
+
+#### **Circuit Breaker**
+
+**File**: `src/network/circuit-breaker.ts` (76 lines modified)
+- Resilience pattern for endpoint failures
+- State machine: closed → open → half-open
+- Configurable thresholds and recovery
+
+#### **HTTP Client**
+
+**File**: `src/network/http-client.ts` (5 lines modified)
+- Retry logic with exponential backoff
+- Timeout management
+- Error classification
+
+#### **Registry Endpoint Manager**
+
+**File**: `src/network/registry-endpoint-manager.ts` (21 lines modified)
+- Multi-registry endpoint coordination
+- Endpoint health tracking
+- Failover logic
+
+---
+
+## Recent Session Work (2025-11-11)
+
+### Session 1: Territory Services Review (16:55-17:05 UTC)
+
+**Objective**: Clarify architectural relationship between territory service files
+
+**Key Findings**:
+1. Confirmed `TerritoryAccessService` does NOT implement `TerritoryServiceInterface`
+2. Documented separation: network coordination vs. cache query layers
+3. Identified potential confusion points with similar method names
+
+**Deliverables**:
+- `.github/docs/territory-services-architecture.md` (282 lines)
+- `.warp/2025-11-11-territory-services-review.md` (195 lines)
+
+**Architectural Insight**:
+```
+TerritoryServiceInterface (Contract)
+├── ✓ HttpRegistryService (Full implementation)
+│   └── Network coordination + cache writes
+└── ✗ TerritoryAccessService (Not an implementation)
+    └── Read-only cache queries
+```
+
+### Session 2: Network Abstraction Review (19:14-19:37 UTC)
+
+**Objective**: Review and correct abstraction of network methods from `main.ts`
+
+**Issues Corrected**:
+1. ✅ Removed incorrect `joinCarnival.bind(this)` call from `onload()`
+2. ✅ Removed incorrect `leaveCarnival.bind(this)` call from `onunload()`
+3. ✅ Added proper public API methods with context binding via `.call(this, ...)`
+
+**Deliverables**:
+- Updated `src/main.ts` with public API methods
+- Updated `src/network/carnival-network.ts` (reviewed)
+- `.github/docs/api-integration.md` (204 lines) - Integration guide for external plugins
+- `.warp/2025-11-11-network-abstraction-review.md` (123 lines) - Session summary
+
+**Key Decision**: Plugin class methods serve as public interface while implementation logic lives in separate module
+
+**Integration Pattern**:
+```typescript
+// External plugin:
+const carnivalPlugin = app.plugins.plugins['carnival-network'];
+const client = carnivalPlugin.joinCarnival('my-plugin', storage, config);
+await client.enterRing();
+
+// Internal delegation:
+joinCarnival(...): CarnivalNetworkClientInterface {
+  return joinCarnival.call(this, performerId, storage, config);
+}
+```
+
+### Session 3: Comprehensive Review (23:53 UTC)
+
+**Objective**: Review all changes and create comprehensive changelog
+
+**Deliverables**:
+- This document (`CHANGELOG.md`)
+
+---
+
+## Architecture Evolution
+
+### Phase 1: Foundation (✅ Complete)
+- Basic HTTP registry service
+- Circuit breaker pattern
+- TLS/mTLS support
+- Certificate store
+- Network protocol abstraction
+- HTTP client with retry logic
+
+### Phase 2: Advanced Infrastructure (✅ Complete)
+- **2.1 Persistent Storage & Caching** ✅
+  - LRU cache with TTL support
+  - Persistent storage via Obsidian vault
+  - Background auto-save
+  - Integration with registry service
+  
+- **2.2 Advanced Monitoring** ✅
+  - Correlation ID tracking
+  - Metrics collection system
+  - Endpoint health probing
+  - Health check endpoints
+  - Enhanced structured logging
+
+### Current Work: Type System & API Refactoring (⏳ In Progress)
+- Carnival-themed type system
+- Public/internal type separation
+- Service layer abstraction
+- External plugin API design
+
+### Phase 3: Advanced API & External Integration (⏳ Planned)
+- RESTful API endpoints
+- Webhook integrations
+- Cross-vault search
+- Client authentication
+- Rate limiting
+
+**See**: `NETWORK-ROADMAP.md` for complete phase breakdown
+
+---
+
+## Type System Refactoring
+
+### 1. Performer Types Migration
+
+**Created**: `src/types/public/carnival-performers-types.ts`
+
+#### Core Types
+
+**`Performer`** (was `NetworkNode`)
+```typescript
+interface Performer {
+  id: string;
+  name: string;
+  territory: string;
+  type: PerformerType;
+  capabilities: string[];
+  metadata: PerformerMetadata;
+  lastSeen: number;
+  status: PerformanceStatus;
+  ratings?: PerformerRatings;
+}
+```
+
+**`PerformerMetadata`**
+```typescript
+interface PerformerMetadata {
+  apiHost: string;
+  apiPort: number;
+  vaultPath: string;
+  platform: string;
+  version?: string;
+  tags?: string[];
+}
+```
+
+**`PerformerInfo`** (lightweight registration)
+```typescript
+interface PerformerInfo {
+  name: string;
+  territory: string;
+  type: PerformerType;
+  capabilities: string[];
+  endpoint: string;
+}
+```
+
+**`PerformerRatings`** (was `PerformanceMetrics`)
+```typescript
+interface PerformerRatings {
+  requestsReceived: number;
+  requestsSent: number;
+  responseTime: number;
+  errorCount: number;
+  successRate: number;      // NEW
+  performanceScore: number; // NEW
+  lastUpdated: number;
+}
+```
+
+**`PerformerType`** (was `NetworkNodeType`)
+```typescript
+type PerformerType = 
+  | 'main'         // Main vault performer
+  | 'territory'    // Territory-specific performer
+  | 'submodule'    // Submodule performer
+  | 'creative'     // Creative content performer
+  | 'development'  // Development environment
+  | 'archive';     // Archive/historical performer
+```
+
+**`PerformanceStatus`**
+```typescript
+type PerformanceStatus = 
+  | 'performing'   // Actively participating
+  | 'intermission' // Temporarily paused
+  | 'finale';      // Shutting down
+```
+
+**`PerformerDiscovery`** (was `TerritoryDiscovery`)
+```typescript
+interface PerformerDiscovery {
+  performer: Performer;
+  discoveryMethod: 'registry' | 'cache' | 'direct';
+  confidence: number;
+  timestamp: number;
+}
+```
+
+**`PerformerConnectionTest`** (was `ConnectionTest`)
+```typescript
+interface PerformerConnectionTest {
+  performerId: string;
+  endpoint: string;
+  healthy: boolean;
+  latencyMs: number;
+  error?: string;
+  timestamp: number;
+}
+```
+
+### 2. Territory Types (Location Focus)
+
+**File**: `src/types/public/carnival-grounds-types.ts`
+
+Focused exclusively on locations/regions:
+
+**`Territory`** (NEW)
+```typescript
+interface Territory {
+  name: string;
+  description?: string;
+  registryEndpoints: string[];
+  capabilities: string[];
+  metadata?: Record<string, unknown>;
+}
+```
+
+**`RegistryEntry`** (lightweight registry format)
+```typescript
+interface RegistryEntry {
+  performerId: string;
+  territoryName: string;
+  endpoint: string;
+  capabilities: string[];
+  lastSeen: number;
+  metadata?: PerformerMetadata;
+}
+```
+
+**`PerformerRegistrationInfo`**
+```typescript
+interface PerformerRegistrationInfo {
+  territory: string;
+  performerInfo: PerformerInfo;
+  ttlMs?: number;
+}
+```
+
+**`TerritoryDiscoveryOptions`** (NEW)
+```typescript
+interface TerritoryDiscoveryOptions {
+  includeOffline?: boolean;
+  capabilityFilter?: string[];
+  typeFilter?: PerformerType[];
+  maxResults?: number;
+}
+```
+
+### 3. Configuration Types
+
+**File**: `src/types/public/carnival-configuration-types.ts`
+
+**`CarnivalConfiguration`** (was `NetworkConfiguration`)
+```typescript
+interface CarnivalConfiguration {
+  // Network settings
+  maxRetries: number;
+  communicationTimeout: number;
+  enableDebugLogging: boolean;
+  
+  // Performer settings
+  registeredPerformers: string[];
+  maxCachedNodes: number;
+  performerCacheTTL: number;
+  
+  // Registry settings
+  registryEndpoints: string[];
+  heartbeatIntervalMs: number;
+  discoveryIntervalMs: number;
+  
+  // TLS settings
+  tlsEnabled: boolean;
+  tlsCertPath?: string;
+  tlsKeyPath?: string;
+  mtlsEnabled?: boolean;
+}
+```
+
+**`PerformerCacheConfig`** (was `CacheConfig`)
+```typescript
+interface PerformerCacheConfig {
+  maxSize: number;
+  defaultTtlMs: number;
+  persistenceEnabled: boolean;
+  persistenceKey: string;
+  backgroundSaveIntervalMs: number;
+  compressionEnabled: boolean;
+}
+```
+
+### 4. Service Interface Types
+
+**File**: `src/types/public/carnival-service-types.ts`
+
+**`TerritoryServiceInterface`**
+```typescript
+interface TerritoryServiceInterface {
+  establishTerritory(
+    territory: string,
+    performerInfo: PerformerRegistrationInfo
+  ): Promise<void>;
+  
+  scoutTerritories(territory: string): Promise<RegistryEntry[]>;
+  
+  sendHeartbeat(performerId: string): Promise<void>;
+  
+  abandonTerritory(performerId: string): Promise<void>;
+  
+  isAvailable(): boolean;
+  
+  getAllNodes(): RegistryEntry[];
+}
+```
+
+**`QueryServiceInterface`**
+```typescript
+interface QueryServiceInterface {
+  queryActs(query: QueryOptions): Promise<Act[]>;
+  countActs(query: QueryOptions): Promise<number>;
+  searchCarnival(searchParams: SearchParams): Promise<SearchResult[]>;
+}
+```
+
+**`ActServiceInterface`**
+```typescript
+interface ActServiceInterface {
+  broadcastAct(act: Act): Promise<void>;
+  getAct(actId: string): Promise<Act | null>;
+  listActs(filter?: ActFilter): Promise<Act[]>;
+}
+```
+
+### 5. Client Interface Types
+
+**File**: `src/types/public/carnival-client-types.ts`
+
+**`CarnivalNetworkClientInterface`**
+```typescript
+interface CarnivalNetworkClientInterface {
+  // Lifecycle
+  enterRing(): Promise<void>;
+  exitRing(): Promise<void>;
+  
+  // Operations
+  broadcastAct(act: Act): Promise<void>;
+  queryActs(query: QueryOptions): Promise<Act[]>;
+  searchCarnival(params: SearchParams): Promise<SearchResult[]>;
+  
+  // Status
+  isConnected(): boolean;
+  getPerformerId(): string;
+  getTerritory(): string;
+}
+```
+
+---
+
+## File Reorganization
+
+### Deleted Files
+
+| File | Lines | Reason |
+|------|-------|--------|
+| `src/network/external-api-service.ts` | 422 | Phase 3 work, stubs incomplete |
+| `src/network/http-network-protocol.ts` | 507 | Superseded by refactored architecture |
+| `src/network/persistent-node-cache.ts` | 556 | Renamed to `persistent-performer-cache.ts` |
+| `carnival-network-extraction.md` | 249 | Temporary working doc |
+| `file-organization-summary.md` | 197 | Temporary working doc |
+
+### Created Files
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/types/public/carnival-performers-types.ts` | ~150 | Performer/participant types |
+| `src/types/public/api-request-types.ts` | ~80 | API request/response types |
+| `src/types/internal/logger-types.ts` | ~40 | Logging type definitions |
+| `src/network/persistent-performer-cache.ts` | ~500 | Renamed and refactored cache |
+| `.github/docs/api-integration.md` | 204 | External plugin integration guide |
+| `.github/docs/territory-services-architecture.md` | 282 | Service layer architecture doc |
+| `.warp/2025-11-11-network-abstraction-review.md` | 123 | Session summary |
+| `.warp/2025-11-11-territory-services-review.md` | 195 | Session summary |
+| `CHANGELOG.md` | This file | Comprehensive changelog |
+
+### Modified Files (Significant Changes)
+
+| File | Changes | Key Updates |
+|------|---------|-------------|
+| `src/main.ts` | 139 lines | Added public API methods, removed incorrect bindings |
+| `src/network/http-registry-service.ts` | 552 lines | Implements interface, uses performer types |
+| `src/network/carnival-network.ts` | 426 lines | Abstracted network client creation |
+| `src/network/carnival-network-client.ts` | 133 lines | Updated to performer types |
+| `src/types/public/*` | Multiple | Carnival-themed type system |
+| `src/types/internal/*` | Multiple | Internal type organization |
+
+### Directory Structure (Current)
+
+```
+carnival-network/
+├── .github/
+│   └── docs/
+│       ├── Territory Interface.md
+│       ├── api-integration.md                    # NEW
+│       ├── carnival-network-hierarchy.md
+│       └── territory-services-architecture.md    # NEW
+│
+├── .warp/
+│   ├── 2025-11-11-network-abstraction-review.md # NEW
+│   ├── 2025-11-11-territory-services-review.md  # NEW
+│   ├── carnival-network-extraction.md
+│   ├── file-organization-summary.md
+│   ├── http-registry-service-refactoring-guide.md
+│   ├── performer-migration-summary.md
+│   └── project-file-analysis.md
+│
+├── src/
+│   ├── errors/                                   # NEW
+│   ├── network/
+│   │   ├── carnival-network.ts                   # MODIFIED
+│   │   ├── carnival-network-client.ts            # MODIFIED
+│   │   ├── certificate-store.ts                  # MODIFIED
+│   │   ├── circuit-breaker.ts                    # MODIFIED
+│   │   ├── handlers/
+│   │   │   ├── auth-handlers.ts                  # MODIFIED
+│   │   │   ├── discord-handlers.ts               # MODIFIED
+│   │   │   └── webhook-handlers.ts               # MODIFIED
+│   │   ├── http-client.ts                        # MODIFIED
+│   │   ├── http-registry-service.ts              # MAJOR REFACTOR
+│   │   ├── http-registry-service.md              # MODIFIED
+│   │   ├── network-initialization.md
+│   │   ├── persistent-performer-cache.ts         # NEW (renamed)
+│   │   ├── registry-endpoint-manager.ts          # MODIFIED
+│   │   ├── services/
+│   │   │   ├── act-service.ts                    # MODIFIED
+│   │   │   ├── carnival-query-service.ts         # MODIFIED
+│   │   │   ├── territory-access-service.ts       # MODIFIED
+│   │   │   └── webhook-verifier.ts               # MODIFIED
+│   │   └── validation.ts                         # MODIFIED
+│   │
+│   ├── types/
+│   │   ├── public/
+│   │   │   ├── api-request-types.ts              # NEW
+│   │   │   ├── carnival-client-types.ts          # MODIFIED
+│   │   │   ├── carnival-configuration-types.ts   # MODIFIED
+│   │   │   ├── carnival-grounds-types.ts         # MODIFIED
+│   │   │   ├── carnival-performers-types.ts      # NEW
+│   │   │   ├── carnival-service-types.ts         # MODIFIED
+│   │   │   ├── index.ts                          # MODIFIED
+│   │   │   ├── network-ops-types.ts              # MODIFIED
+│   │   │   ├── query-types.ts                    # MODIFIED
+│   │   │   ├── records-types.ts                  # MODIFIED
+│   │   │   ├── search-types.ts                   # MODIFIED
+│   │   │   └── webhooks-types.ts                 # MODIFIED
+│   │   │
+│   │   └── internal/
+│   │       ├── authentication-types.ts           # MODIFIED
+│   │       ├── certificate-store-types.ts        # MODIFIED
+│   │       ├── error-types.ts                    # MODIFIED
+│   │       ├── index.ts                          # MODIFIED
+│   │       ├── logger-types.ts                   # NEW
+│   │       ├── network-protocol-types.ts         # MODIFIED
+│   │       ├── node-cache-types.ts               # MODIFIED (→ performer-cache)
+│   │       ├── registry-types.ts                 # MODIFIED
+│   │       └── validation-types.ts               # MODIFIED
+│   │
+│   ├── ui/                                       # NEW
+│   │   └── settings-tab.ts
+│   │
+│   ├── utils/                                    # NEW
+│   │   ├── logger.ts
+│   │   └── plugin-utils.ts
+│   │
+│   └── main.ts                                   # MODIFIED
+│
+├── CHANGELOG.md                                   # NEW (this file)
+├── NETWORK-ROADMAP.md
+└── README.md
+```
+
+---
+
+## API Changes
+
+### Public API for External Plugins
+
+#### Before (Conceptual)
+```typescript
+// No formalized external API
+```
+
+#### After (Implemented)
+```typescript
+// Get plugin instance
+const carnivalPlugin = app.plugins.plugins['carnival-network'];
+
+// Join the carnival
+const client: CarnivalNetworkClientInterface = carnivalPlugin.joinCarnival(
+  'my-plugin-id',
+  storage,
+  config
+);
+
+// Initialize
+await client.enterRing();
+
+// Use network operations
+await client.broadcastAct(act);
+const results = await client.queryActs(query);
+
+// Cleanup
+await carnivalPlugin.leaveCarnival('my-plugin-id');
+```
+
+### Territory Service Interface
+
+#### Before
+```typescript
+// Direct method calls on registry service
+await registryService.registerNode(nodeInfo);
+const nodes = await registryService.discoverNetworkNodes(territory);
+await registryService.unregisterNode(nodeId);
+```
+
+#### After
+```typescript
+// Interface-based calls
+await territoryService.establishTerritory(territory, performerInfo);
+const entries = await territoryService.scoutTerritories(territory);
+await territoryService.sendHeartbeat(performerId);
+await territoryService.abandonTerritory(performerId);
+
+// Query methods
+const all = territoryService.getAllNodes();
+const available = territoryService.isAvailable();
+```
+
+### Type Changes for Consumers
+
+#### Before
+```typescript
+import { NetworkNode, PerformanceMetrics } from 'carnival-network';
+
+function processNode(node: NetworkNode) {
+  console.log(node.metadata.apiHost);
+}
+```
+
+#### After
+```typescript
+import { Performer, PerformerRatings } from 'carnival-network';
+
+function processPerformer(performer: Performer) {
+  console.log(performer.metadata.apiHost);
+  console.log(performer.ratings?.successRate);
+}
+```
+
+---
+
+## Documentation Structure
+
+### `.github/docs/` - External Documentation
+
+**Purpose**: Documentation for external consumers and contributors
+
+**Files**:
+1. **`api-integration.md`** (204 lines)
+   - Integration guide for external plugins
+   - Basic and full integration examples
+   - Configuration options
+   - Error handling patterns
+   - Best practices and troubleshooting
+
+2. **`territory-services-architecture.md`** (282 lines)
+   - Service layer architecture overview
+   - Relationship between service components
+   - Data flow diagrams
+   - Usage patterns and examples
+   - Design patterns employed
+
+3. **`carnival-network-hierarchy.md`**
+   - Type system hierarchy visualization
+   - Dependency relationships
+   - Module organization
+
+4. **`Territory Interface.md`**
+   - Territory service interface specification
+   - Method signatures and contracts
+   - Implementation requirements
+
+### `.warp/` - Development Session Logs
+
+**Purpose**: Conversation summaries and working notes for AI agents
+
+**Files**:
+1. **`2025-11-11-network-abstraction-review.md`** (123 lines)
+   - Network abstraction refactoring session
+   - Issues corrected and solutions
+   - Strategic implications and next steps
+
+2. **`2025-11-11-territory-services-review.md`** (195 lines)
+   - Territory services architecture review
+   - Service layer clarifications
+   - Potential concerns and edge cases
+
+3. **`performer-migration-summary.md`**
+   - Performer type migration guide
+   - Before/after comparisons
+   - Mental model diagrams
+
+4. **`http-registry-service-refactoring-guide.md`**
+   - Step-by-step refactoring guide
+   - Type replacement mappings
+   - Method signature updates
+
+5. **`carnival-network-extraction.md`**
+   - Working document for network extraction
+   - (Deleted from root, preserved in `.warp/`)
+
+6. **`file-organization-summary.md`**
+   - File reorganization tracking
+   - (Deleted from root, preserved in `.warp/`)
+
+7. **`project-file-analysis.md`**
+   - Project file structure analysis
+   - Dependency mapping
+
+### Root Documentation
+
+**Files**:
+1. **`README.md`**
+   - Project overview (currently minimal)
+   - TODO: Expand with features, usage, installation
+
+2. **`NETWORK-ROADMAP.md`** (625 lines)
+   - Complete development roadmap
+   - Phase breakdowns with deliverables
+   - Success metrics and timeline
+   - Infrastructure documentation
+
+3. **`CHANGELOG.md`** (this file)
+   - Comprehensive change documentation
+   - Reference for AI agents
+
+### Documentation Strategy
+
+**For AI Agents**:
+1. **Start here**: `CHANGELOG.md` - Understand what changed and why
+2. **Understand phases**: `NETWORK-ROADMAP.md` - Know where project is going
+3. **Review sessions**: `.warp/*.md` - Context from recent work
+4. **Consult architecture**: `.github/docs/*.md` - Deep dives into specific systems
+
+**For External Developers**:
+1. **Start here**: `README.md` - Project overview
+2. **Integration**: `.github/docs/api-integration.md` - How to use the plugin
+3. **Architecture**: `.github/docs/*.md` - Understand the system
+4. **Roadmap**: `NETWORK-ROADMAP.md` - Future features
+
+---
+
+## Migration Guides
+
+### For Existing Code Using Old Types
+
+#### 1. Update Imports
+
+**Before**:
+```typescript
+import { NetworkNode, PerformanceMetrics } from '../types';
+```
+
+**After**:
+```typescript
+import { Performer, PerformerRatings } from '../types/public/carnival-performers-types';
+// or
+import { Performer, PerformerRatings } from '../types';
+```
+
+#### 2. Rename Type References
+
+**Search and Replace**:
+- `NetworkNode` → `Performer`
+- `NetworkConfiguration` → `CarnivalConfiguration`
+- `PerformanceMetrics` → `PerformerRatings`
+- `NetworkNodeType` → `PerformerType`
+- `TerritoryDiscovery` → `PerformerDiscovery`
+- `ConnectionTest` → `PerformerConnectionTest`
+- `PersistentNodeCache` → `PersistentPerformerCache`
+- `CacheConfig` → `PerformerCacheConfig`
+
+#### 3. Update Method Calls
+
+**Registry Service**:
+```typescript
+// Before
+await registryService.registerNode(nodeInfo);
+const nodes = await registryService.discoverNetworkNodes('backstage');
+await registryService.unregisterNode(nodeId);
+
+// After
+await registryService.establishTerritory('backstage', performerInfo);
+const entries = await registryService.scoutTerritories('backstage');
+await registryService.abandonTerritory(performerId);
+```
+
+**Validation**:
+```typescript
+// Before
+const nodes = validateNetworkNodes(data);
+
+// After
+const performers = validatePerformers(data);
+```
+
+#### 4. Update Cache Usage
+
+**Before**:
+```typescript
+const cache = new PersistentNodeCache(app, config);
+const node = cache.get(nodeId);
+cache.set(nodeId, node);
+```
+
+**After**:
+```typescript
+const cache = new PersistentPerformerCache(app, config);
+const performer = cache.get(performerId);
+cache.set(performerId, performer);
+```
+
+#### 5. Update Configuration
+
+**Before**:
+```typescript
+const config: NetworkConfiguration = {
+  maxRetries: 3,
+  communicationTimeout: 5000,
+  // ...
+};
+```
+
+**After**:
+```typescript
+const config: CarnivalConfiguration = {
+  maxRetries: 3,
+  communicationTimeout: 5000,
+  // ...
+};
+```
+
+### For External Plugin Developers
+
+#### Minimal Integration Example
+
+```typescript
+import type {
+  CarnivalNetworkClientInterface,
+  CarnivalConfig
+} from 'carnival-network';
+
+export default class MyPlugin extends Plugin {
+  private networkClient: CarnivalNetworkClientInterface;
+
+  async onload(): Promise<void> {
+    this.app.workspace.onLayoutReady(async () => {
+      await this.initializeNetwork();
+    });
+  }
+
+  private async initializeNetwork(): Promise<void> {
+    const carnivalPlugin = this.app.plugins.plugins['carnival-network'];
+    const secureStorage = this.app.plugins.plugins['obsidian-secure-store'];
+
+    if (!carnivalPlugin || !secureStorage) {
+      console.error('Required plugins not available');
+      return;
+    }
+
+    const config: CarnivalConfig = {
+      maxRetries: 3,
+      communicationTimeout: 5000,
+      enableDebugLogging: false,
+      registeredPerformers: []
+    };
+
+    this.networkClient = carnivalPlugin.joinCarnival(
+      'my-plugin',
+      secureStorage.getAPIKeyStorage(),
+      config
+    );
+
+    await this.networkClient.enterRing();
+  }
+
+  async onunload(): Promise<void> {
+    const carnivalPlugin = this.app.plugins.plugins['carnival-network'];
+    if (carnivalPlugin) {
+      await carnivalPlugin.leaveCarnival('my-plugin');
+    }
+  }
+}
+```
+
+**See**: `.github/docs/api-integration.md` for complete examples
+
+---
+
+## Known Issues & Technical Debt
+
+### Critical Issues
+
+**None currently blocking development**
+
+### High Priority
+
+1. **Uncommitted Changes** (⚠️ Urgent)
+   - Status: 41 files modified, -2,041 lines
+   - Action: Test changes, commit, and push
+   - Risk: Loss of refactoring work
+
+2. **Type Compilation** (⚠️ High)
+   - Status: Not tested since refactoring
+   - Action: Run `npm run build` or equivalent
+   - Risk: Type errors may exist
+
+3. **Import Path Updates** (⚠️ High)
+   - Status: Many files may have stale imports
+   - Action: Search for old type names, update imports
+   - Risk: Runtime errors if imports incorrect
+
+### Medium Priority
+
+4. **Testing** (📋 Medium)
+   - Status: No unit tests for refactored code
+   - Action: Add tests for public API methods
+   - Files: `main.ts`, `carnival-network.ts`, `http-registry-service.ts`
+
+5. **Documentation Gaps** (📋 Medium)
+   - Status: README.md is minimal
+   - Action: Expand with features, installation, examples
+   - Impact: External developers need better onboarding
+
+6. **Cache Synchronization** (📋 Medium)
+   - Issue: If `HttpRegistryService` cache updates fail, `TerritoryAccessService` serves stale data
+   - Action: Add cache validation/freshness checks
+   - See: `.warp/2025-11-11-territory-services-review.md` (line 98)
+
+7. **Error Recovery** (📋 Medium)
+   - Issue: If troupe cleanup fails during unload, no recovery mechanism
+   - Action: Add error handling and fallback logic
+   - See: `.warp/2025-11-11-network-abstraction-review.md` (line 73)
+
+### Low Priority
+
+8. **Method Name Collision** (📋 Low)
+   - Issue: `HttpRegistryService` and `TerritoryAccessService` both have `getAllPerformers()` and `isAvailable()`
+   - Risk: Developers might assume both implement same interface
+   - Action: Consider renaming in one service
+   - See: `.warp/2025-11-11-territory-services-review.md` (line 92)
+
+9. **Duplicate Prevention** (📋 Low)
+   - Issue: Check for existing troupes logs warning but returns existing instance rather than erroring
+   - Action: Decide on strict vs. lenient behavior
+   - See: `.warp/2025-11-11-network-abstraction-review.md` (line 74)
+
+10. **Orphaned Troupes** (📋 Low)
+    - Issue: If plugin crashes without properly leaving, troupe may be orphaned
+    - Action: Implement cleanup on plugin reload
+    - See: `.warp/2025-11-11-network-abstraction-review.md` (line 78)
+
+### Technical Debt
+
+11. **Stub Implementations Removed** (🔧 Debt)
+    - File: `external-api-service.ts` (deleted)
+    - Action: Reimplement in Phase 3
+    - See: `NETWORK-ROADMAP.md` Phase 3 section
+
+12. **HTTP Network Protocol Removed** (🔧 Debt)
+    - File: `http-network-protocol.ts` (deleted)
+    - Action: Ensure functionality absorbed into registry service
+    - Verify: No lost features from deletion
+
+13. **Mobile Testing** (🔧 Debt)
+    - Status: Desktop-only testing so far
+    - Action: Test on iOS/Android Obsidian
+    - Impact: Mobile-specific issues may exist
+
+14. **Bundle Size** (🔧 Debt)
+    - Status: Not measured after refactoring
+    - Action: Measure bundle size impact
+    - Target: Keep under 2-3 MB for mobile
+
+### Edge Cases to Monitor
+
+15. **Plugin Load Order** (🔍 Watch)
+    - Issue: Consuming plugins must wait for Carnival Network to load
+    - Mitigation: Use `onLayoutReady` callback
+    - See: `.github/docs/api-integration.md` (line 78)
+
+16. **Performer Re-joining** (🔍 Watch)
+    - Question: What happens if plugin tries to join with same ID after leaving?
+    - Status: Not tested
+    - See: `.warp/2025-11-11-network-abstraction-review.md` (line 77)
+
+17. **Concurrent Troupe Operations** (🔍 Watch)
+    - Question: Is `PersistentPerformerCache` thread-safe?
+    - Status: Needs verification
+    - See: `.warp/2025-11-11-territory-services-review.md` (line 110)
+
+---
+
+## Roadmap Reference
+
+**Full Roadmap**: See `NETWORK-ROADMAP.md`
+
+### Completed Phases
+- ✅ **Phase 1**: Foundation & Circuit Breaking
+- ✅ **Phase 2**: Advanced Infrastructure
+  - ✅ 2.1: Persistent Storage & Caching
+  - ✅ 2.2: Advanced Monitoring
+
+### Current Phase
+- ⏳ **Type System & API Refactoring** (Not in original roadmap, emerged during development)
+  - ⏳ Carnival-themed type system
+  - ⏳ Public/internal type separation
+  - ⏳ Service layer abstraction
+  - ⏳ External plugin API design
+
+### Next Phases
+- 🔜 **Phase 3**: Advanced API & External Integration
+  - RESTful API endpoints
+  - Webhook integrations
+  - Cross-vault search
+  - Client authentication
+  - Rate limiting
+
+- 🔜 **Phase 4**: Persistent Database Integration
+  - Database architecture design
+  - Record persistence
+  - Metrics history
+  - Network topology history
+
+- 🔜 **Phase 5**: Production Hardening
+  - Security hardening
+  - Performance optimization
+  - Reliability & resilience
+  - Operational excellence
+  - Documentation & knowledge transfer
+
+### Success Metrics for Current Work
+
+**Type System Refactoring**:
+- [ ] All files compile without type errors
+- [ ] All imports updated to new types
+- [ ] All method signatures use carnival types
+- [ ] External plugins can integrate via public API
+- [ ] Documentation complete and accurate
+
+**API Abstraction**:
+- [ ] External plugins can join/leave carnival
+- [ ] Network clients created correctly
+- [ ] Context binding works properly
+- [ ] Cleanup happens on unload
+- [ ] No memory leaks or orphaned resources
+
+---
+
+## For AI Agents: Quick Start Guide
+
+### First Steps When Working on This Project
+
+1. **Read This Document First**
+   - Understand recent changes
+   - Check known issues
+   - Review current phase
+
+2. **Consult the Roadmap**
+   - File: `NETWORK-ROADMAP.md`
+   - Understand project goals
+   - Check phase completion status
+
+3. **Review Recent Sessions**
+   - Directory: `.warp/`
+   - Latest session notes
+   - Context from recent decisions
+
+4. **Check Architecture Docs**
+   - Directory: `.github/docs/`
+   - System architecture
+   - Integration patterns
+
+5. **Verify Current State**
+   - Run: `git status` - Check uncommitted changes
+   - Run: `npm run build` - Verify compilation
+   - Check: Type errors and warnings
+
+### Understanding the Codebase
+
+**Key Files**:
+- `src/main.ts` - Plugin entry point, public API
+- `src/network/carnival-network.ts` - Network client factory
+- `src/network/carnival-network-client.ts` - Network client implementation
+- `src/network/http-registry-service.ts` - Registry coordination
+- `src/types/public/index.ts` - Public type exports
+
+**Key Concepts**:
+- **Performers**: Participants in the carnival (was "nodes")
+- **Territories**: Regions/locations in the network
+- **Troupes**: Network clients (one per consuming plugin)
+- **Registry**: Discovery and coordination service
+- **Cache**: Persistent performer registry
+
+**Design Patterns**:
+- **Factory Pattern**: `joinCarnival()` creates network clients
+- **Strategy Pattern**: Multiple service implementations
+- **Circuit Breaker**: Resilience for endpoint failures
+- **Facade Pattern**: `TerritoryAccessService` over cache
+
+### Common Tasks
+
+**Adding a New Type**:
+1. Determine: Public or internal?
+2. Choose file: Based on category
+3. Add type definition
+4. Export from `index.ts`
+5. Update documentation
+
+**Modifying a Service**:
+1. Check interface: Does it implement an interface?
+2. Update implementation
+3. Update tests (if exist)
+4. Update documentation
+5. Check consumers: Who uses this service?
+
+**Fixing Type Errors**:
+1. Identify: Old type name in use?
+2. Replace: Use carnival-themed equivalent
+3. Update imports: Use correct path
+4. Verify: Check all usages
+
+**Adding Documentation**:
+1. External: Add to `.github/docs/`
+2. Internal: Add to `.warp/`
+3. Update: This changelog with reference
+
+### Before Making Changes
+
+**Checklist**:
+- [ ] Read relevant `.warp/` session notes
+- [ ] Understand current phase (see roadmap)
+- [ ] Check for open issues/technical debt
+- [ ] Review related architecture docs
+- [ ] Verify current compilation status
+
+### After Making Changes
+
+**Checklist**:
+- [ ] Test compilation: `npm run build`
+- [ ] Update types: If type system changed
+- [ ] Update documentation: If API changed
+- [ ] Update changelog: Document changes
+- [ ] Add session note: In `.warp/` directory
+- [ ] Commit changes: With descriptive message
+
+### Communication Style
+
+**This project uses a carnival metaphor consistently**:
+- Use carnival-themed terminology in code
+- Maintain playful but professional tone
+- Include carnival emojis in logs (🎪 🎭 🎨 🎯 etc.)
+- Follow naming conventions established
+
+**When in doubt**:
+- Check existing code for patterns
+- Consult `.warp/` notes for recent decisions
+- Refer to architecture docs for design intent
+- Ask user for clarification on ambiguous cases
+
+---
+
+## Version History
+
+### Version 2.0 - 2025-11-11
+- Comprehensive changelog created
+- Documents all refactoring work
+- Session notes integrated
+- Migration guides added
+- AI agent quick start guide added
+
+### Version 1.x - Prior Work
+- Phase 1 & 2 development
+- Initial carnival-themed architecture
+- See: `NETWORK-ROADMAP.md` for historical phases
+
+---
+
+## Contact & Further Information
+
+**Documentation Locations**:
+- Architecture: `.github/docs/`
+- Session Notes: `.warp/`
+- Roadmap: `NETWORK-ROADMAP.md`
+- This Changelog: `CHANGELOG.md`
+
+**Key References**:
+- Performer Type Migration: `.warp/performer-migration-summary.md`
+- Registry Refactoring: `.warp/http-registry-service-refactoring-guide.md`
+- API Integration: `.github/docs/api-integration.md`
+- Territory Services: `.github/docs/territory-services-architecture.md`
+
+**For Questions**:
+1. Check this changelog
+2. Review session notes in `.warp/`
+3. Consult architecture docs in `.github/docs/`
+4. Review roadmap in `NETWORK-ROADMAP.md`
+5. Ask user for clarification
+
+---
+
+*"The carnival remembers all. Each change, each decision, each line of code—all documented for the performers who follow. Step right up and join the show!"* 🎪✨
+
+---
+
+**End of Changelog**

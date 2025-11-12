@@ -1,24 +1,26 @@
 import { Log } from '../utils/logger';
 import { CircuitOpenError } from '../errors/circuit-open-error';
 import type {
-	CircuitBreakerOptions,
+	CircuitBreakerConfig,
 	CircuitState
-} from '../types/public';
+} from '../types/internal';
 
 /**
- * Circuit breaker for managing endpoint health
+ * 🎪 Circuit breaker for managing endpoint health
+ * 
+ * Provides fault tolerance by preventing repeated calls to failing endpoints,
+ * allowing them time to recover before retrying.
  * 
  * @version 2.0.0 - Enhanced with metrics, failure classification, and bug fixes
- * @backward-compatible All existing code continues to work unchanged
  */
 export class CircuitBreaker {
-	private state: CircuitState = 'closed';
+	private state: CircuitState = 'CLOSED';
 	private failures: number = 0;
 	private lastFailureTime: number = 0;
 	private openTime: number = 0;
 	private successCount: number = 0;
 	
-	// NEW: Enhanced tracking (doesn't affect existing functionality)
+	// Enhanced tracking
 	private halfOpenAttempts: number = 0;
 	private totalRequests: number = 0;
 	private totalSuccesses: number = 0;
@@ -28,7 +30,7 @@ export class CircuitBreaker {
 
 	constructor(
 		private readonly name: string,
-		private readonly options: CircuitBreakerOptions
+		private readonly options: CircuitBreakerConfig
 	) {}
 
 	/**
@@ -39,7 +41,7 @@ export class CircuitBreaker {
 	 */
 	async execute<T>(
 		operation: () => Promise<T>,
-		shouldTripCircuit?: (error: unknown) => boolean  // NEW, OPTIONAL
+		shouldTripCircuit?: (error: unknown) => boolean
 	): Promise<T> {
 		this.checkState();
 		this.totalRequests++;
@@ -49,7 +51,7 @@ export class CircuitBreaker {
 		}
 
 		// Track half-open attempts
-		if (this.state === 'half-open') {
+		if (this.state === 'HALF_OPEN') {
 			this.halfOpenAttempts++;
 		}
 
@@ -60,7 +62,7 @@ export class CircuitBreaker {
 		} catch (error) {
 			this.lastError = error;
 			
-			// NEW: Optional failure classification with safe default
+			// Optional failure classification with safe default
 			const shouldTrip = shouldTripCircuit?.(error) ?? true;
 			
 			if (shouldTrip) {
@@ -72,15 +74,13 @@ export class CircuitBreaker {
 
 	/**
 	 * Get current circuit state
-	 * @unchanged - existing method signature preserved
 	 */
 	getState(): CircuitState {
 		return this.state;
 	}
 
 	/**
-	 * NEW: Get detailed metrics about circuit breaker performance
-	 * @additive - new method, doesn't affect existing code
+	 * Get detailed metrics about circuit breaker performance
 	 */
 	getMetrics() {
 		return {
@@ -100,16 +100,15 @@ export class CircuitBreaker {
 	}
 
 	/**
-	 * NEW: Reset circuit breaker to closed state
-	 * @additive - new method for manual recovery
+	 * Reset circuit breaker to closed state
 	 */
 	reset(): void {
-		this.state = 'closed';
+		this.state = 'CLOSED';
 		this.failures = 0;
 		this.successCount = 0;
 		this.halfOpenAttempts = 0;
 		this.lastError = undefined;
-		this.changeState('closed');
+		this.changeState('CLOSED');
 		
 		Log.log({
 			context: 'Circuit Breaker',
@@ -118,17 +117,16 @@ export class CircuitBreaker {
 	}
 
 	/**
-	 * FIXED: Check if circuit is open (rejecting requests)
-	 * @bug-fix - corrected half-open logic
+	 * Check if circuit is open (rejecting requests)
 	 */
 	private isOpen(): boolean {
-		if (this.state === 'open') {
+		if (this.state === 'OPEN') {
 			return true;
 		}
 		
-		if (this.state === 'half-open') {
+		if (this.state === 'HALF_OPEN') {
 			// Allow limited requests in half-open state
-			const maxHalfOpenRequests = this.options.halfOpenRequests ?? 3;
+			const maxHalfOpenRequests = 3; // Could be configurable
 			return this.halfOpenAttempts >= maxHalfOpenRequests;
 		}
 		
@@ -137,48 +135,46 @@ export class CircuitBreaker {
 
 	/**
 	 * Update circuit state based on current conditions
-	 * @unchanged - internal logic preserved
 	 */
 	private checkState() {
 		const now = Date.now();
 
 		// Clear old failures outside window
-		if (now - this.lastFailureTime > this.options.failureWindow) {
+		if (now - this.lastFailureTime > this.options.timeout) {
 			this.failures = 0;
 		}
 
 		// Check if we should attempt recovery
-		if (this.state === 'open' && now - this.openTime > this.options.resetTimeout) {
+		if (this.state === 'OPEN' && now - this.openTime > this.options.resetTimeout) {
 			Log.log({
 				context: 'Circuit Breaker',
 				path: this.name
 			}, `🔌 Attempting recovery for ${this.name}`);
-			this.changeState('half-open');
+			this.changeState('HALF_OPEN');
 			this.successCount = 0;
-			this.halfOpenAttempts = 0;  // Reset attempt counter
+			this.halfOpenAttempts = 0;
 		}
 	}
 
 	/**
 	 * Handle successful operation
-	 * @enhanced - added metrics tracking
 	 */
 	private onSuccess() {
 		this.totalSuccesses++;
 		
-		if (this.state === 'half-open') {
+		if (this.state === 'HALF_OPEN') {
 			this.successCount++;
 			if (this.successCount >= this.options.successThreshold) {
 				Log.log({
 					context: 'Circuit Breaker',
 					path: this.name
 				}, `🔌 Circuit closed for ${this.name} after ${this.successCount} successes`);
-				this.changeState('closed');
+				this.changeState('CLOSED');
 				this.failures = 0;
 				this.successCount = 0;
 				this.halfOpenAttempts = 0;
 			}
-		} else if (this.state === 'closed') {
+		} else if (this.state === 'CLOSED') {
 			// Clear failures after a success in closed state
 			this.failures = 0;
 		}
@@ -186,44 +182,42 @@ export class CircuitBreaker {
 
 	/**
 	 * Handle failed operation
-	 * @enhanced - added metrics tracking
 	 */
 	private onFailure() {
 		this.failures++;
 		this.totalFailures++;
 		this.lastFailureTime = Date.now();
 
-		if (this.state === 'closed' && this.failures >= this.options.failureThreshold) {
+		if (this.state === 'CLOSED' && this.failures >= this.options.failureThreshold) {
 			Log.log({
 				context: 'Circuit Breaker',
 				path: this.name
 			}, `🔌 Circuit opened for ${this.name} after ${this.failures} failures`);
-			this.changeState('open');
+			this.changeState('OPEN');
 			this.openTime = Date.now();
-		} else if (this.state === 'half-open') {
+		} else if (this.state === 'HALF_OPEN') {
 			Log.log({
 				context: 'Circuit Breaker',
 				path: this.name
 			}, `🔌 Circuit re-opened for ${this.name} after failed recovery`);
-			this.changeState('open');
+			this.changeState('OPEN');
 			this.openTime = Date.now();
 			this.halfOpenAttempts = 0;
 		}
 	}
 
 	/**
-	 * NEW: Helper to change state with optional callback
-	 * @internal - supports optional state change notifications
+	 * Helper to change state with optional callback
 	 */
 	private changeState(newState: CircuitState) {
 		const oldState = this.state;
 		this.state = newState;
 		this.stateChangeTime = Date.now();
 		
-		// Optional callback for state changes
-		if (this.options.onStateChange && oldState !== newState) {
+		// Optional callback for state changes (if added to config)
+		if ((this.options as any).onStateChange && oldState !== newState) {
 			try {
-				this.options.onStateChange(newState);
+				(this.options as any).onStateChange(newState);
 			} catch (error) {
 				Log.error({
 					context: 'Circuit Breaker',

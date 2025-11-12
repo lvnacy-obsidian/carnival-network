@@ -8,7 +8,7 @@
  * - ValidationRule - structure for validation rule
  */
 
-import { ValidationError } from "./error-types";
+import { ValidationError } from './error-types';
 
 export interface ValidationResult {
 	valid: boolean;

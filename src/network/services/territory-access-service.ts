@@ -1,158 +1,160 @@
-// services/registry-access-service.ts
-import { App } from 'obsidian';
 import { Log } from '../../utils/logger';
+import { PersistentPerformerCache } from '../persistent-performer-cache';
 import type {
 	LogContext,
-	ObsidianAppWithPlugins,
-	TerritoryNode,
-	TerritoryServiceInterface
+	RegistryEntry
 } from '../../types/public';
 
-const registryLogger: LogContext = {
-	context: 'Registry Access Service',
-	path: '/.obsidian/plugins/carnival-records/network/services/registry-access'
+const territoryLogger: LogContext = {
+	context: 'Territory Access Service',
+	path: '/.obsidian/plugins/carnival-network/services/territory-access-service'
 };
 
 /**
- * Provides centralized access to the HTTP Registry Service
- * Handles fallback when registry is unavailable
+ * 🎪 Provides centralized access to performer data from the cache
+ * 
+ * This service wraps the performer cache and provides convenient
+ * query methods for accessing performer data by various criteria.
  */
 export class TerritoryAccessService {
-	private cachedRegistryService?: TerritoryServiceInterface | undefined;
-	private lastAccessAttempt = 0;
-	private readonly cacheValidityMs = 1000; // Re-check every second
-
-	constructor(private readonly app: App) {}
+	constructor(private readonly performerCache: PersistentPerformerCache) {}
 
 	/**
-	 * Get the registry service instance
-	 * Caches the reference briefly to avoid repeated lookups
+	 * Clear cached data
 	 */
-	getTerritoryService(): TerritoryServiceInterface {
-		const now = Date.now();
-		
-		// Use cached reference if still valid
-		if (this.cachedRegistryService && 
-			now - this.lastAccessAttempt < this.cacheValidityMs) {
-			return this.cachedRegistryService;
-		}
-		
-		this.lastAccessAttempt = now;
-		
+	clearCache(): void {
 		try {
-			const carnivalNetwork = (this.app as ObsidianAppWithPlugins).plugins?.plugins?.['carnival-records']?.carnivalNetwork;
-			
-			if (carnivalNetwork?.httpRegistryService) {
-				this.cachedRegistryService = carnivalNetwork.httpRegistryService;
-				return this.cachedRegistryService;
-			}
-			
-			// Registry not available - return empty implementation
-			Log.warn(registryLogger, 'Registry service not available, using empty fallback');
-			return this.getEmptyTerritoryService();
-			
+			this.performerCache.clear();
+			Log.log(territoryLogger, '🎪 Cache cleared');
 		} catch (error) {
-			Log.error(registryLogger, 'Failed to access registry service:', error);
-			return this.getEmptyTerritoryService();
+			Log.error(territoryLogger, '🎪 Failed to clear cache:', error);
 		}
 	}
 
 	/**
-	 * Get all nodes from registry
+	 * Get all performers from cache as registry entries
 	 */
-	getAllNodes(): TerritoryNode[] {
+	getAllPerformers(): RegistryEntry[] {
 		try {
-			const registry = this.getTerritoryService();
-			return registry.nodeCache.getAll();
+			const performers = this.performerCache.values();
+			return performers.map(p => this.performerToRegistryEntry(p));
 		} catch (error) {
-			Log.error(registryLogger, 'Failed to get all nodes:', error);
+			Log.error(territoryLogger, '🎪 Failed to get all performers:', error);
 			return [];
 		}
 	}
 
 	/**
-	 * Get a specific node by ID
+	 * Get all unique territories
 	 */
-	getNode(nodeId: string): TerritoryNode | null {
+	getAllTerritories(): string[] {
 		try {
-			const registry = this.getTerritoryService();
-			return registry.nodeCache.get(nodeId);
+			const performers = this.performerCache.values();
+			const territories = new Set(performers.map(p => p.territory));
+			return Array.from(territories);
 		} catch (error) {
-			Log.error(registryLogger, `Failed to get node ${nodeId}:`, error);
+			Log.error(territoryLogger, '🎪 Failed to get territories:', error);
+			return [];
+		}
+	}
+
+	/**
+	 * Get a specific performer by ID
+	 */
+	getPerformer(performerId: string): RegistryEntry | null {
+		try {
+			const performer = this.performerCache.get(performerId);
+			return performer ? this.performerToRegistryEntry(performer) : null;
+		} catch (error) {
+			Log.error(territoryLogger, `🎪 Failed to get performer ${performerId}:`, error);
 			return null;
 		}
 	}
 
 	/**
-	 * Get nodes filtered by territory
+	 * Get count of all performers
 	 */
-	getNodesByTerritory(territory: string): TerritoryNode[] {
+	getPerformerCount(): number {
 		try {
-			const allNodes = this.getAllNodes();
-			return allNodes.filter(node => node.territoryName === territory);
+			return this.performerCache.size();
 		} catch (error) {
-			Log.error(registryLogger, `Failed to get nodes for territory ${territory}:`, error);
-			return [];
-		}
-	}
-
-	/**
-	 * Get nodes filtered by capability
-	 */
-	getNodesByCapability(capability: string): TerritoryNode[] {
-		try {
-			const allNodes = this.getAllNodes();
-			return allNodes.filter(node => node.capabilities.includes(capability));
-		} catch (error) {
-			Log.error(registryLogger, `Failed to get nodes with capability ${capability}:`, error);
-			return [];
-		}
-	}
-
-	/**
-	 * Get count of all nodes
-	 */
-	getNodeCount(): number {
-		try {
-			const registry = this.getTerritoryService();
-			return registry.nodeCache.size();
-		} catch (error) {
-			Log.error(registryLogger, 'Failed to get node count:', error);
+			Log.error(territoryLogger, '🎪 Failed to get performer count:', error);
 			return 0;
 		}
 	}
 
 	/**
-	 * Check if registry service is available
+	 * Get performers count by territory
+	 */
+	getPerformerCountByTerritory(): Record<string, number> {
+		try {
+			const performers = this.performerCache.values();
+			const counts: Record<string, number> = {};
+			
+			for (const performer of performers) {
+				counts[performer.territory] = (counts[performer.territory] || 0) + 1;
+			}
+			
+			return counts;
+		} catch (error) {
+			Log.error(territoryLogger, '🎪 Failed to get performer counts by territory:', error);
+			return {};
+		}
+	}
+
+	/**
+	 * Get performers filtered by capability
+	 */
+	getPerformersByCapability(capability: string): RegistryEntry[] {
+		try {
+			const allPerformers = this.performerCache.values();
+			return allPerformers
+				.filter(performer => performer.capabilities.includes(capability))
+				.map(p => this.performerToRegistryEntry(p));
+		} catch (error) {
+			Log.error(territoryLogger, `🎪 Failed to get performers with capability ${capability}:`, error);
+			return [];
+		}
+	}
+
+	/**
+	 * Get performers filtered by territory
+	 */
+	getPerformersByTerritory(territory: string): RegistryEntry[] {
+		try {
+			const allPerformers = this.performerCache.values();
+			return allPerformers
+				.filter(performer => performer.territory === territory)
+				.map(p => this.performerToRegistryEntry(p));
+		} catch (error) {
+			Log.error(territoryLogger, `🎪 Failed to get performers for territory ${territory}:`, error);
+			return [];
+		}
+	}
+
+	/**
+	 * Check if service is available (cache has data)
 	 */
 	isAvailable(): boolean {
 		try {
-			const carnivalNetwork = (this.app as ObsidianAppWithPlugins).plugins?.plugins?.['carnival-records']?.carnivalNetwork;
-			return Boolean(carnivalNetwork?.httpRegistryService);
+			return this.performerCache.size() > 0;
 		} catch (error) {
-			Log.error(registryLogger, 'Failed to check registry availability:', error);
+			Log.error(territoryLogger, '🎪 Failed to check availability:', error);
 			return false;
 		}
 	}
 
 	/**
-	 * Clear cached registry reference (useful for testing or plugin reload)
+	 * Convert Performer to RegistryEntry (lightweight format)
 	 */
-	clearCache(): void {
-		this.cachedRegistryService = undefined;
-		this.lastAccessAttempt = 0;
-	}
-
-	/**
-	 * Get empty registry service for fallback
-	 */
-	private getEmptyTerritoryService(): TerritoryServiceInterface {
+	private performerToRegistryEntry(performer: import('../../types/public').Performer): RegistryEntry {
 		return {
-			nodeCache: {
-				getAll: () => [],
-				get: () => null,
-				size: () => 0
-			}
+			performerId: performer.id,
+			territoryName: performer.territory,
+			endpoint: `http://${performer.metadata.apiHost ?? 'localhost'}:${performer.metadata.apiPort ?? 27123}`,
+			capabilities: performer.capabilities,
+			lastSeen: performer.lastSeen,
+			metadata: performer.metadata
 		};
 	}
 }

@@ -1,29 +1,32 @@
 import { CircuitBreaker } from './circuit-breaker';
 import type {
-	CircuitBreakerOptions,
+	CircuitBreakerConfig,
 	CircuitState
-} from '../types/network/circuit-breaker-types';
+} from '../types/internal';
 
 /**
- * Registry endpoint state manager with circuit breaker
+ * 🎪 Registry endpoint state manager with circuit breaker
+ * 
+ * Manages circuit breakers for each registry endpoint to provide
+ * fault tolerance and automatic recovery from failing endpoints.
  */
 export class RegistryEndpointManager {
 	private breakers: Map<string, CircuitBreaker> = new Map();
-	private defaultOptions: CircuitBreakerOptions = {
+	private defaultOptions: CircuitBreakerConfig = {
 		failureThreshold: 3,
-		failureWindow: 60000, // 1 minute
-		resetTimeout: 30000,  // 30 seconds
-		successThreshold: 2   // 2 consecutive successes to restore
+		successThreshold: 2,   // 2 consecutive successes to restore
+		timeout: 60000,        // 1 minute
+		resetTimeout: 30000    // 30 seconds
 	};
 
-	private options: CircuitBreakerOptions;
+	private options: CircuitBreakerConfig;
 
 	// Simple in-memory metrics per endpoint
 	private metrics: Map<string, { requests: number; successes: number; failures: number }> = new Map();
 
 	constructor(
 		private readonly endpoints: string[],
-		options?: Partial<CircuitBreakerOptions>
+		options?: Partial<CircuitBreakerConfig>
 	) {
 		this.options = { ...this.defaultOptions, ...options };
 		for (const endpoint of this.endpoints) {

@@ -4,21 +4,22 @@ import { HttpRegistryService } from './http-registry-service';
 import { ActService } from './services/act-service';
 import { CarnivalQueryService } from './services/carnival-query-service';
 import { TerritoryAccessService } from './services/territory-access-service';
-import { PersistentNodeCache } from './persistent-node-cache';
+import { PersistentPerformerCache } from './persistent-performer-cache';
 import { Log } from '../utils/logger';
+import { getPlugin } from 'src/utils/plugin-utils';
 import type {
 	CarnivalNetworkClientInterface,
 	TerritoryServiceInterface,
 	QueryServiceInterface,
 	ActServiceInterface,
 	APIKeyStorage,
-	CarnivalConfiguration,
+	CarnivalConfig,
 	CarnivalRecord,
 	ActQueryOptions,
 	ActCountOptions,
 	SearchOptions,
 	SearchResult,
-	TerritoryNode,
+	RegistryEntry,
 	PerformanceStatus,
 	LogContext
 } from '../types/public';
@@ -37,33 +38,40 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 	private territoryService: HttpRegistryService;
 	private actService: ActService;
 	private queryService: CarnivalQueryService;
-	private nodeCache: PersistentNodeCache;
+	private performerCache: PersistentPerformerCache;
 	private territoryAccess: TerritoryAccessService;
-	private currentNodeId: string | null = null;
+	private currentPerformerId: string | null = null;
 
 	constructor(
 		private readonly app: App,
-		private config: CarnivalConfiguration,
+		private config: CarnivalConfig,
 		private readonly storage: APIKeyStorage,
 		private readonly performerId: string
 	) {
 		Log.log(clientLogger, `🎭 Setting up stage for performer: ${performerId}`);
 
-		// Initialize node cache (the program)
-		this.nodeCache = new PersistentNodeCache(
-			this.config.nodeCacheTTL,
-			this.config.maxCachedNodes
+		// Initialize performer cache (the program)
+		this.performerCache = new PersistentPerformerCache(
+			this.app,
+			{
+				maxSize: this.config.maxCachedPerformers ?? 1000,
+				defaultTtlMs: this.config.performerCacheTTL ?? (30 * 60 * 1000),
+				persistenceEnabled: true,
+				persistenceKey: 'carnival-performer-cache',
+				backgroundSaveIntervalMs: 5 * 60 * 1000,
+				compressionEnabled: true
+			}
 		);
 
 		// Initialize territory access service
-		this.territoryAccess = new TerritoryAccessService(this.nodeCache);
+		this.territoryAccess = new TerritoryAccessService(this.app);
 
 		// Initialize territory service
 		this.territoryService = new HttpRegistryService(
-			this.storage,
+			this.app,
 			this.config,
-			this.territoryAccess,
-			this.nodeCache
+			this.storage,
+			this.performerCache
 		);
 
 		// Initialize act service
@@ -94,14 +102,11 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 		try {
 			Log.log(clientLogger, `🎪 ${this.performerId} is entering the ring...`);
 
-			// Initialize territory service
-			await this.territoryService.initialize();
+			// Load cached performers (the program)
+			await this.performerCache.loadFromStorage(this.app);
 
-			// Load cached nodes (the program)
-			await this.nodeCache.loadFromStorage(this.app);
-
-			// Generate node ID for this performance
-			this.currentNodeId = this.generateNodeId();
+			// Generate performer ID for this performance
+			this.currentPerformerId = this.generatePerformerId();
 
 			this.performing = true;
 			Log.log(clientLogger, `🎉 ${this.performerId} has entered the ring! The show begins!`);
@@ -119,24 +124,24 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 		try {
 			Log.log(clientLogger, `🎭 ${this.performerId} is taking a bow...`);
 
-			// Deregister from territories if we have a node ID
-			if (this.currentNodeId) {
+			// Deregister from territories if we have a performer ID
+			if (this.currentPerformerId) {
 				try {
-					await this.territoryService.deregisterNode(this.currentNodeId);
+					await this.territoryService.deregisterPerformer(this.currentPerformerId);
 				} catch (error) {
-					Log.warn(clientLogger, 'Failed to deregister node during cleanup:', error);
+					Log.warn(clientLogger, 'Failed to deregister performer during cleanup:', error);
 				}
 			}
 
 			// Save cache before cleanup (preserve the program)
-			await this.nodeCache.saveToStorage(this.app);
+			await this.performerCache.saveToStorage(this.app);
 
 			// Cleanup services
 			this.territoryService.cleanup();
 			this.actService.cleanup();
 
 			this.performing = false;
-			this.currentNodeId = null;
+			this.currentPerformerId = null;
 
 			Log.log(clientLogger, `👋 ${this.performerId} has left the ring. Until next time!`);
 		} catch (error) {
@@ -157,15 +162,13 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 	async establishTerritory(territory: string): Promise<void> {
 		this.ensurePerforming();
 		
-		if (!this.currentNodeId) {
-			this.currentNodeId = this.generateNodeId();
-		}
+		this.currentPerformerId ??= this.generatePerformerId();
 
-		const nodeInfo = {
-			nodeId: this.currentNodeId,
+		const performerInfo = {
+			performerId: this.currentPerformerId,
 			territoryName: territory,
 			endpoint: this.getLocalEndpoint(),
-			capabilities: this.getNodeCapabilities(),
+			capabilities: this.getPerformerCapabilities(),
 			metadata: {
 				performerId: this.performerId,
 				vaultName: this.app.vault.getName(),
@@ -173,30 +176,30 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 			}
 		};
 
-		await this.territoryService.registerNode(territory, nodeInfo);
-		Log.log(clientLogger, `🎪 Territory established: ${territory} (node: ${this.currentNodeId})`);
+		await this.territoryService.establishTerritory(territory, performerInfo);
+		Log.log(clientLogger, `🎪 Territory established: ${territory} (performer: ${this.currentPerformerId})`);
 	}
 
-	async scoutTerritories(territory: string): Promise<TerritoryNode[]> {
+	async scoutTerritories(territory: string): Promise<RegistryEntry[]> {
 		this.ensurePerforming();
 		
-		const nodes = await this.territoryService.discoverNodes(territory);
-		Log.log(clientLogger, `🔍 Scouted ${nodes.length} nodes in ${territory}`);
+		const performers = await this.territoryService.discoverPerformers(territory);
+		Log.log(clientLogger, `🔍 Scouted ${performers.length} performers in ${territory}`);
 		
-		return nodes;
+		return performers;
 	}
 
 	async updatePerformanceStatus(status: Partial<PerformanceStatus>): Promise<void> {
 		this.ensurePerforming();
 		
-		const nodeId = status.nodeId || this.currentNodeId;
-		if (!nodeId) {
-			Log.warn(clientLogger, 'Cannot update status: no node ID available');
+		const performerId = status.performerId ?? this.currentPerformerId;
+		if (!performerId) {
+			Log.warn(clientLogger, 'Cannot update status: no performer ID available');
 			return;
 		}
 
-		await this.territoryService.updateHeartbeat(nodeId);
-		Log.log(clientLogger, `💓 Heartbeat sent for node: ${nodeId}`);
+		await this.territoryService.updateHeartbeat(performerId);
+		Log.log(clientLogger, `💓 Heartbeat sent for performer: ${performerId}`);
 	}
 
 	/**
@@ -205,19 +208,17 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 	 * ========================================================================
 	 */
 
-	async broadcastAct(record: CarnivalRecord): Promise<void> {
+	async broadcastAct(act: CarnivalRecord): Promise<void> {
 		this.ensurePerforming();
 		
 		// Enrich record with performer metadata if not present
-		if (!record.metadata.performerId) {
-			record.metadata.performerId = this.performerId;
-		}
-		if (!record.metadata.nodeId && this.currentNodeId) {
-			record.metadata.nodeId = this.currentNodeId;
+		act.metadata.performerId ??= this.performerId;
+		if (!act.metadata.performerId && this.currentPerformerId) {
+			act.metadata.performerId = this.currentPerformerId;
 		}
 
-		await this.actService.broadcastAct(record);
-		Log.log(clientLogger, `📢 Act broadcast: "${record.title}" (${record.id})`);
+		await this.actService.broadcastAct(act);
+		Log.log(clientLogger, `📢 Act broadcast: "${act.title}" (${act.id})`);
 	}
 
 	queryActs(options: ActQueryOptions): CarnivalRecord[] {
@@ -274,11 +275,11 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 	 * ========================================================================
 	 */
 
-	getShowConfiguration(): CarnivalConfiguration {
+	getShowConfiguration(): CarnivalConfig {
 		return { ...this.config };
 	}
 
-	updateShowConfiguration(config: Partial<CarnivalConfiguration>): void {
+	updateShowConfiguration(config: Partial<CarnivalConfig>): void {
 		this.config = {
 			...this.config,
 			...config
@@ -293,10 +294,10 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 	 */
 
 	/**
-	 * Get the current node ID for this performer
+	 * Get the current performer ID for this performer
 	 */
-	getNodeId(): string | null {
-		return this.currentNodeId;
+	getPerformerId(): string | null {
+		return this.currentPerformerId;
 	}
 
 	/**
@@ -311,19 +312,19 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 	 */
 	getPerformanceStats(): {
 		isPerforming: boolean;
-		nodeId: string | null;
+		performerId: string | null;
 		performerId: string;
-		cachedNodes: number;
+		cachedPerformers: number;
 		territories: string[];
 	} {
-		const allNodes = this.territoryAccess.getAllNodes();
-		const territories = [...new Set(allNodes.map(node => node.territoryName))];
+		const allPerformers = this.territoryAccess.getAllPerformers();
+		const territories = [...new Set(allPerformers.map(performer => performer.territoryName))];
 
 		return {
 			isPerforming: this.performing,
-			nodeId: this.currentNodeId,
+			performerId: this.currentPerformerId,
 			performerId: this.performerId,
-			cachedNodes: allNodes.length,
+			cachedPerformers: allPerformers.length,
 			territories
 		};
 	}
@@ -343,7 +344,7 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 		}
 	}
 
-	private generateNodeId(): string {
+	private generatePerformerId(): string {
 		const vaultName = this.app.vault.getName();
 		const sanitizedVault = vaultName.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
 		const sanitizedPerformer = this.performerId.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
@@ -355,7 +356,7 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 
 	private getLocalEndpoint(): string {
 		// Try to get the Local REST API plugin endpoint
-		const localRestApi = (this.app as any).plugins?.plugins?.['obsidian-local-rest-api'];
+		const localRestApi = getPlugin(this.app, 'obsidian-local-rest-api');
 		
 		if (localRestApi && typeof localRestApi.getEndpoint === 'function') {
 			return localRestApi.getEndpoint();
@@ -365,7 +366,7 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 		return 'http://localhost:27124';
 	}
 
-	private getNodeCapabilities(): string[] {
+	private getPerformerCapabilities(): string[] {
 		// Return capabilities based on performer configuration
 		const capabilities = [
 			'act_sync',
