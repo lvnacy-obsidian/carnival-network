@@ -1,8 +1,8 @@
 # Carnival Records Plugin - Network Development Roadmap
 
-**Last Updated**: 2025-10-17  
-**Status**: Phase 2/5 Complete (Phase 3 Ready, Phases 4-5 Planned)  
-**Next Major Phase**: Advanced API & External Integration
+**Last Updated**: 2025-11-12  
+**Status**: Phase 2/5 Complete + Major Phase 3 Progress (Phases 4-5 Planned)  
+**Next Major Phase**: Complete Phase 3 (API Implementation) + Phase 4 (Database Integration)
 
 ---
 
@@ -119,15 +119,119 @@ This roadmap outlines the complete network infrastructure development for the Ca
 
 ## In-Progress / Planned Phases
 
-### Phase 3: Advanced API & External Integration (⏳ Ready to Start)
-**Timeline**: Following current development cycle  
-**Dependencies**: Phase 2 complete ✅, functional network data available ✅
+### Phase 3: Advanced API & External Integration (🔄 In Progress)
+**Timeline**: Current development cycle (Nov 2025)  
+**Dependencies**: Phase 2 complete ✅, functional network data available ✅  
+**Recent Work**: Major refactoring and type system improvements complete
 
-#### 3.1 External API Service Implementation
-**Scope**: Flesh out stub implementations in `external-api-service.ts`
+#### 3.1 Type System & Service Architecture (✅ Complete - Nov 2025)
+**Scope**: Establish proper type hierarchies and service interfaces
+
+**Completed Deliverables**
+- ✅ **Act Query Type Hierarchy** - Proper extension hierarchy established
+  - `ActQueryParams` (API input layer)
+  - `ActQueryOptions` (internal processing with required fields)
+  - `ExtendedActQueryOptions` (advanced filtering)
+  - `PaginatedActResult` (response format)
+  - `ActQueryBuilder` for complex query construction
+- ✅ **Analytics Type System** - Comprehensive analytics types created
+  - `CarnivalActivity` (renamed from NetworkActivity)
+  - `CarnivalTopology` (renamed from NetworkTopology)
+  - `ActivityAnalytics`, `CapabilityAnalytics`, `PerformanceAnalytics`
+  - `RecordAnalytics`, `TerritoryAnalytics`, `AnalyticsData`
+  - `ObservabilityConfig`, `MetricDataPoint`
+  - `AnalyticsQueryParams`, `AnalyticsResponse`
+- ✅ **CarnivalQueryService Refactored** - Proper interface implementation
+  - Implements `QueryServiceInterface` with all 3 required methods
+  - `queryTerritory()`, `queryAllTerritories()`, `getPerformerStatus()`
+  - Observability framework architecture complete (providers pending)
+  - Metric buffering and periodic flushing system
+  - Support for Prometheus, Datadog, and custom providers
+- ✅ **ActService Methods Implemented**
+  - `queryActs()` - Full filtering and pagination support
+  - `countActs()` - Count matching records
+  - `broadcastAct()` - Network broadcast with acknowledgment
+  - `queryActsPaginated()` - Pagination with metadata
+  - `performSearch()` - Cross-act search with relevance scoring
+  - `listActs()` - Simple listing with filters
+  - `getAct()` - Single act retrieval
+- ✅ **Network Abstraction Review** - Clean separation of concerns
+  - Plugin lifecycle properly separated from business logic
+  - Public API methods (`joinCarnival()`, `leaveCarnival()`)
+  - Proper context binding with `.call(this, ...)`
+  - API integration documentation created
+
+**Key Files Refactored**
+- `src/types/public/records-types.ts` - Act query types consolidated
+- `src/types/public/act-query-types.ts` - Simplified to utilities only
+- `src/types/public/analytics-types.ts` - NEW: Comprehensive analytics types
+- `src/network/services/carnival-query-service.ts` - Interface implementation
+- `src/network/services/act-service.ts` - Query methods implemented
+- `src/main.ts` - Public API methods added
+- `.github/docs/api-integration.md` - NEW: Integration guide
+
+**Session Documentation**
+- `.warp/2025-11-11-act-query-type-refactoring.md` - Type hierarchy details
+- `.warp/2025-11-11-carnival-query-service-refactoring.md` - Service refactoring
+- `.warp/2025-11-11-network-abstraction-review.md` - Network abstraction
+
+#### 3.2 Archive Abstraction Layer (🔄 Current Work)
+**Scope**: Prepare architecture for Phase 4 database integration with carnival-themed storage abstraction
+
+**Strategic Value**:
+- Enables clean RxDB integration in Phase 4 without refactoring business logic
+- Improves testability immediately (mock archives for unit tests)
+- Maintains PersistentPerformerCache as permanent fallback layer
+- Adapter pattern proven for storage backend swaps
+- Carnival-themed: "Archive" evokes tome-y, old-world record preservation
+
+**Deliverables**
+- [ ] **ArchiveInterface** - Define carnival record storage contract
+  - CRUD operations (create, read, update, delete)
+  - Query operations (find, filter, paginate)
+  - Index management (create, rebuild, query by index)
+  - Batch operations (bulkInsert, bulkUpdate, bulkDelete)
+  - Transaction support (begin, commit, rollback)
+- [ ] **InMemoryArchive** - Wrap existing Map-based storage
+  - Migrate ActService from direct Map access to archive interface
+  - Implement query methods using in-memory indexes
+  - Maintain existing performance characteristics
+- [ ] **CacheArchive** - PersistentPerformerCache implementation
+  - Wrap PersistentPerformerCache as ArchiveInterface
+  - Serve as fallback when database unavailable
+  - Ensure cache remains fully functional standalone
+- [ ] **ActService Refactoring** - Use archive interface instead of direct Map
+  - Replace `private acts: Map<>` with `private archive: ArchiveInterface`
+  - All query methods use archive interface
+  - No breaking changes to public ActService API
+  - Transparent to CarnivalQueryService and external consumers
+- [ ] **Testing Infrastructure** - Mock archive for unit tests
+  - Create MockArchive for testing
+  - Unit tests for archive implementations
+  - Integration tests with ActService
+
+**Key Files to Create/Modify**
+- `src/storage/ArchiveInterface.ts` - NEW: Carnival archive interface definition
+- `src/storage/InMemoryArchive.ts` - NEW: In-memory implementation
+- `src/storage/CacheArchive.ts` - NEW: Cache wrapper implementation
+- `src/network/services/act-service.ts` - MODIFY: Use archive interface
+- `tests/storage/MockArchive.ts` - NEW: Testing utilities
+
+**Implementation Timeline**: ~2-3 hours
+- Define interface and create archive implementations
+- Refactor ActService to use archive
+- Write tests for archive implementations
+- Verify no regression in existing functionality
+
+**Phase 4 Benefit**: RxDB becomes RxDBArchive implementation, no business logic changes required
+
+---
+
+#### 3.3 External API Service Implementation (⏳ Next Priority)
+**Scope**: Create RESTful API endpoints for external clients
 
 **High-Priority Deliverables**
-- [ ] RESTful API endpoints for external clients
+- [ ] RESTful API endpoints for external clients (NEW - needs dedicated service)
   - Records query with pagination and filtering
   - Record creation with validation
   - Territory discovery and performer status
@@ -163,50 +267,85 @@ POST   /api/webhooks/github      - GitHub event processing
 POST   /api/webhooks/newsletter  - Newsletter event processing
 ```
 
-**Stub Methods to Implement**
-- `queryActs()` - Query records from network with filtering
-- `countActs()` - Count matching records for pagination
-- `broadcastAct()` - Broadcast record via network protocol
-- `getNetworkTopology()` - Retrieve current topology
-- `getConnectedPerformersCount()` - Active performer count
-- `getRecentActivity()` - Network activity log retrieval
-- `verifyGitHubSignature()` - GitHub webhook signature validation
-- `verifyNewsletterSignature()` - Newsletter webhook signature validation
-- `handleGitHubWebhook()` - GitHub event processing logic
-- `handleNewsletterWebhook()` - Newsletter event processing
-- `performCarnivalSearch()` - Cross-vault search implementation
-- `generateAnalyticsData()` - Analytics aggregation and generation
+**Methods Status Update**
+- ✅ `queryActs()` - IMPLEMENTED in ActService (full filtering, pagination, sorting)
+- ✅ `countActs()` - IMPLEMENTED in ActService (supports territory, type, status filters)
+- ✅ `broadcastAct()` - IMPLEMENTED in ActService (network broadcast with acknowledgment)
+- ✅ `getNetworkTopology()` - IMPLEMENTED as `getCarnivalTopology()` in CarnivalQueryService
+- ✅ `getConnectedPerformersCount()` - IMPLEMENTED in CarnivalQueryService
+- ✅ `getRecentActivity()` - IMPLEMENTED in CarnivalQueryService (configurable timeframe)
+- ✅ `generateAnalyticsData()` - IMPLEMENTED as `generateAnalytics()` in CarnivalQueryService
+- ✅ `performSearch()` - IMPLEMENTED as `performSearch()` in ActService (relevance-based)
+- [ ] `verifyGitHubSignature()` - NOT YET IMPLEMENTED (webhook handlers exist but verification pending)
+- [ ] `verifyNewsletterSignature()` - NOT YET IMPLEMENTED
+- [ ] `handleGitHubWebhook()` - PARTIAL (handler exists in discord-handlers.ts, needs signature verification)
+- [ ] `handleNewsletterWebhook()` - PARTIAL (handler exists in webhook-handlers.ts, needs signature verification)
 
 **Leveraging Existing Infrastructure**
-- Use `CorrelationTracker` for request tracing through API calls
-- Use `globalMetrics` for API performance monitoring
-- Use `globalProber` for endpoint health checks
-- Use `globalHealthCheck` for API status endpoints
-- Use enhanced `Log` system for detailed API logging
-- Use `PersistentPerformerCache` for quick record access
+- ✅ Using `CorrelationTracker` for request tracing through API calls
+- ✅ Using `globalMetrics` for API performance monitoring
+- ✅ Using `globalProber` for endpoint health checks
+- ✅ Using `globalHealthCheck` for API status endpoints
+- ✅ Using enhanced `Log` system for detailed API logging
+- ✅ Using `PersistentPerformerCache` for quick record access
+- ✅ Observability framework integrated into CarnivalQueryService
+- ✅ ActService has in-memory indexing (by territory, type, performer)
 
 **Testing Requirements**
-- [ ] Unit tests for each endpoint handler
-- [ ] Integration tests with mock registry
-- [ ] Signature verification tests for webhooks
-- [ ] Rate limiting validation tests
+- [ ] Unit tests for ActService query methods
+- [ ] Unit tests for CarnivalQueryService interface methods
+- [ ] Integration tests with TerritoryAccessService
+- [ ] Type hierarchy compatibility tests
+- [ ] ActQueryBuilder tests
+- [ ] Observability framework tests (metric buffering, flushing)
+- [ ] Signature verification tests for webhooks (pending implementation)
+- [ ] Rate limiting validation tests (pending implementation)
 - [ ] Error handling and edge case coverage
 
-**Phase Completion Criteria**
-- All API endpoints operational and tested
-- Request correlation and metrics integrated
-- Health endpoints functional
-- Rate limiting effective
-- Zero critical API security issues
+**Phase 3.1 Completion Criteria** ✅
+- ✅ Core query methods implemented and functional
+- ✅ Proper type hierarchy established
+- ✅ Interface compliance (QueryServiceInterface)
+- ✅ Observability framework architecture complete
+- ✅ Request correlation and metrics integrated
+- ✅ ActService query/count/broadcast methods operational
+
+**Phase 3.2 Completion Criteria** (Archive Abstraction - Current)
+- [ ] ArchiveInterface defined and documented
+- [ ] InMemoryArchive implemented and tested
+- [ ] CacheArchive wraps PersistentPerformerCache
+- [ ] ActService refactored to use archive interface
+- [ ] MockArchive created for testing
+- [ ] All existing tests pass with archive implementation
+- [ ] No performance regression from abstraction layer
+
+**Phase 3.3 Completion Criteria** (External API - Remaining)
+- [ ] External REST API endpoints created
+- [ ] Webhook signature verification implemented
+- [ ] Rate limiting implementation complete
+- [ ] All API endpoints tested
+- [ ] Zero critical API security issues
 
 ---
 
 ### Phase 4: Persistent Database Integration (⏳ Post-API Phase)
 **Timeline**: After API endpoints fully implemented  
-**Dependencies**: Phase 3 complete ✅, operational API with analytics needs ✅
+**Dependencies**: Phase 3 complete ✅, archive abstraction layer ✅, operational API with analytics needs ✅  
+**Selected Solution**: **RxDB** (reactive, offline-first NoSQL database)
 
-#### 4.1 Database Architecture Design
-**Scope**: Design and implement persistent storage for network data
+**Decision Rationale** (from Phase 4 analysis in `.warp/phase4-database-analysis.md`):
+- ✅ Offline-first design matches Obsidian's philosophy perfectly
+- ✅ Storage adapter flexibility (LokiJS for desktop, Dexie/IndexedDB for mobile)
+- ✅ Reactive queries integrate seamlessly with Obsidian UI
+- ✅ Moderate bundle size (200-400 KB acceptable for features provided)
+- ✅ NoSQL document model fits carnival records structure
+- ✅ Active development and modern architecture
+- ✅ Optional sync capabilities for future multi-vault scenarios
+
+**Alternative Considered**: sql.js (full SQL, 850 KB-1.6 MB bundle) - available if complex relational queries become critical
+
+#### 4.1 RxDB Integration & Schema Design
+**Scope**: Integrate RxDB as ArchiveInterface implementation (RxDBArchive)
 
 **Critical Obsidian Plugin Constraints**
 - **Single Bundled File**: Plugin compiles to single JavaScript file via esbuild for Obsidian consumption
@@ -230,22 +369,32 @@ POST   /api/webhooks/newsletter  - Newsletter event processing
   - Database acts as supplementary persistence, not mandatory requirement
 
 **High-Priority Deliverables**
-- [ ] Database selection and schema design
-  - **Option A (Embedded)**: SQLite.js, sql.js, or similar bundled solution
-    - Pros: Single file deployment, zero external dependencies, works offline
-    - Cons: Larger bundle size, limited performance for large datasets
-  - **Option B (File-based)**: Vault-local JSON/MessagePack files
-    - Pros: Minimal dependencies, file-native to Obsidian, mobile-friendly
-    - Cons: Less efficient querying, file I/O bottlenecks for large datasets
-  - **Option C (Hybrid)**: Embedded SQLite for local, remote sync when available
-    - Pros: Best performance offline and online, flexible deployment
-    - Cons: Complex sync logic, potential data conflict resolution
-  - **Option D (Enhanced Cache)**: Keep PersistentPerformerCache, add optional external persistence
-    - Pros: Minimal changes, offline-first by design, mobile-native
-    - Cons: Limited query capabilities without database
-  - Design schema for records, network topology, metrics history
-  - Plan for migration strategy from in-memory to persistent storage
-  - **Plan for offline-first behavior**: Define fallback to cache-only operation
+- [ ] **Data Model Preparation** - Prepare TypeScript types for RxDB schemas
+  - Review existing types (CarnivalAct, PerformerRegistration, etc.) for RxDB compatibility
+  - Add required fields: `createdAt`, `updatedAt`, `version` timestamps
+  - Ensure all fields use RxDB-compatible types (string, number, boolean, object)
+  - Define primary keys and index fields
+  - Document schema versioning strategy for future migrations
+- [ ] **RxDB Schema Definition** - Convert TypeScript interfaces to RxDB schemas
+  - CarnivalAct schema with indexes on territory, type, performer, timestamp
+  - PerformerRegistration schema with indexes on performerId, territory
+  - MetricsHistory schema for time-series analytics data
+  - NetworkTopology schema for historical topology snapshots
+  - EventLog schema for webhook events and state transitions
+- [ ] **RxDBArchive Implementation** - RxDB as ArchiveInterface
+  - Implement ArchiveInterface using RxDB collections
+  - Initialize RxDB with appropriate storage adapter:
+    - Desktop: LokiJS adapter with filesystem persistence via Vault API
+    - Mobile: Dexie.js adapter (IndexedDB, browser-native)
+    - Fallback: In-memory adapter → CacheArchive
+  - Handle RxDB initialization failures gracefully (fallback to cache)
+  - Integrate reactive queries with observable patterns
+- [ ] **Bundle Integration** - Add RxDB to plugin bundle
+  - Install RxDB and required storage adapters via npm
+  - Configure esbuild to bundle RxDB correctly
+  - Measure bundle size impact (target < 400 KB increase)
+  - Optimize imports to minimize bundle size (tree-shaking)
+  - Test WASM loading for LokiJS adapter
 - [ ] Record persistence
   - Long-term storage for all carnival records
   - Historical tracking and audit trails
@@ -299,10 +448,12 @@ POST   /api/webhooks/newsletter  - Newsletter event processing
 - [ ] Offline operation verification and testing
 
 **Integration Points**
-- Replace/supplement in-memory `PersistentPerformerCache` with database backing
+- ActService uses RxDBArchive via ArchiveInterface (no business logic changes)
+- Replace/supplement in-memory structures with RxDB collections
 - Persist metrics from `globalMetrics` for historical analysis
 - Store webhook events for replay and debugging
 - Archive correlation and trace data for audit purposes
+- CacheArchive remains available as fallback layer
 
 #### 4.2 Analytics & Reporting
 **Scope**: Build analytics capabilities on top of persistent data
@@ -359,49 +510,48 @@ POST   /api/webhooks/newsletter  - Newsletter event processing
   - Archival strategies
   - Storage optimization
 
-**Bundle Size Impact Analysis**
-- **Baseline**: Current plugin bundle ~X MB
-- **SQLite.js**: +Y MB (evaluate impact on plugin load time)
-- **sql.js**: +Z MB (in-memory SQL engine)
-- **Custom file-based**: Minimal (+K KB for marshaling code)
-- **Decision**: Only add embedded database if bundle size remains acceptable
-  - Target: Keep plugin bundle < 2-3 MB for mobile compatibility
-  - Fallback: Use cache-based approach if embedded DB exceeds budget
+**Bundle Size Impact Analysis (RxDB)**
+- **Baseline**: Current plugin bundle ~300-500 KB
+- **RxDB Core**: +150-200 KB minified
+- **LokiJS Adapter**: +200 KB (desktop)
+- **Dexie.js Adapter**: +50 KB (mobile alternative)
+- **Total Impact**: +200-400 KB depending on adapters included
+- **Target**: Keep total plugin bundle < 1 MB for good mobile experience
+- **Mitigation**: Tree-shake unused plugins, selective imports, lazy-load sync features
 
-**Decision Framework for Database Option Selection**
+**RxDB Storage Adapter Strategy**
 
-**Choose Option A (Embedded SQLite) if:**
-- Complex query patterns required beyond simple filtering
-- Bundle size acceptable (< 500 KB for database library)
-- Desktop-primary usage pattern expected
-- Advanced analytics queries needed regularly
+**Desktop Obsidian (Electron):**
+- Use LokiJS adapter with filesystem persistence via Vault API
+- Benefits: In-memory speed with disk persistence, no IndexedDB needed
+- Trade-off: +200 KB bundle size, requires manual save/load coordination
 
-**Choose Option B (File-based JSON) if:**
-- Simple key-value or document-based queries sufficient
-- Mobile usage significant
-- Bundle size critical constraint
-- Obsidian vault file integration preferred
+**Mobile Obsidian (iOS/Android):**
+- Use Dexie.js adapter (IndexedDB wrapper)
+- Benefits: Browser-native, automatic persistence, mobile-optimized
+- Trade-off: IndexedDB not file-based (harder to backup via Vault)
 
-**Choose Option C (Hybrid) if:**
-- Best-of-both-worlds approach acceptable
-- Sync complexity can be managed
-- Offline desktop + online mobile usage pattern
-
-**Choose Option D (Enhanced Cache) if:**
-- Current PersistentPerformerCache performance adequate
-- Offline-first without database acceptable
-- Minimal implementation complexity desired
-- Future database integration remains possible
+**Fallback (All Platforms):**
+- In-memory adapter → CacheArchive (PersistentPerformerCache)
+- Guaranteed operation without database
+- No RxDB initialization required
+- Zero bundle size impact if RxDB fails to load
 
 **Phase Completion Criteria**
-- Database architecture selected with written justification
-- Bundle size impact assessed and approved
-- All records persist correctly in chosen storage
-- Historical analytics queryable and performant
-- Migration from Phase 2 storage successful
-- Backup/restore procedures functional
-- Offline operation tested on mobile clients
-- Cache fallback verified to work when database unavailable
+- ✅ Database selection: RxDB chosen (see `.warp/phase4-database-analysis.md`)
+- [ ] Data model preparation: TypeScript types RxDB-ready
+- [ ] RxDB schemas defined for all entity types
+- [ ] RxDBArchive implements ArchiveInterface
+- [ ] Bundle size impact measured (target < 400 KB increase)
+- [ ] All records persist correctly in RxDB
+- [ ] Historical analytics queryable and performant
+- [ ] Migration from Phase 3 storage successful
+- [ ] Backup/restore procedures functional
+- [ ] Desktop (LokiJS) and mobile (Dexie) adapters tested
+- [ ] Offline operation verified on mobile clients
+- [ ] CacheArchive fallback verified when RxDB unavailable
+- [ ] Reactive queries integrated with UI updates
+- [ ] No breaking changes to ActService public API
 
 ---
 
@@ -547,11 +697,13 @@ POST   /api/webhooks/newsletter  - Newsletter event processing
 ## Known Limitations & Future Considerations
 
 ### Current Limitations
-- External API service stub implementations
-- No persistent database (planned for Phase 4)
-- No authentication beyond basic API keys
+- External REST API service not yet created (ActService/QueryService are internal only)
+- No persistent database (planned for Phase 4) - currently in-memory with persistence cache
+- No authentication beyond basic API keys (when external API created)
+- No webhook signature verification (handlers exist but need security implementation)
 - No webhook retry logic for failures
-- Limited rate limiting (per-client only)
+- Limited rate limiting (per-client only, not yet implemented)
+- Observability providers not yet implemented (framework exists)
 
 ### Future Enhancements
 - OAuth2/JWT authentication
@@ -575,8 +727,10 @@ POST   /api/webhooks/newsletter  - Newsletter event processing
 ## Success Metrics
 
 ### Phase 3 (API Implementation)
-- [ ] All 8 API endpoints fully implemented
-- [ ] All 12 stub methods functional
+- ✅ Core service methods implemented (ActService, CarnivalQueryService)
+- ✅ 8 of 12 key methods functional (queryActs, countActs, broadcastAct, getCarnivalTopology, getConnectedPerformersCount, getRecentActivity, generateAnalytics, performSearch)
+- [ ] External REST API endpoints created
+- [ ] Webhook signature verification implemented (4 methods remaining)
 - [ ] 100% of endpoint scenarios tested
 - [ ] Zero unhandled exceptions in production logs
 - [ ] API response times < 500ms (p95)
@@ -600,6 +754,14 @@ POST   /api/webhooks/newsletter  - Newsletter event processing
 ---
 
 ## Document History
+
+**Version 1.2** - 2025-11-12 (Updated)
+- Updated Phase 3 status with completed refactoring work
+- Documented type system improvements and service implementations
+- Added session documentation references from `.warp/` directory
+- Updated stub method status (8 of 12 core methods implemented)
+- Clarified remaining work for Phase 3.2 (external API endpoints)
+- Added observability framework status (architecture complete, providers pending)
 
 **Version 1.1** - 2025-10-17 (Updated)
 - Separated database integration into dedicated Phase 4

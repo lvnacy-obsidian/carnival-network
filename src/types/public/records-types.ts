@@ -9,8 +9,12 @@
  * - ActSyncPreferences - Act synchronization preferences
  * - CarnivalRecord - Structure of a carnival record (an act in the show)
  * - CreateActParams - Parameters for creating a new act
+ * - ExtendedActQueryOptions
+ * - PaginatedActResult
  * - RecordMetadata - Metadata associated with a record
  */
+
+import { ActQueryParams } from './query-types';
 
 /**
  * Act count options
@@ -21,14 +25,10 @@ export interface ActCountOptions {
 	status?: 'active' | 'archived' | 'cancelled';
 }
 
-/**
- * Act query options
- */
-export interface ActQueryOptions {
-	territory?: string;
-	type?: string;
-	limit: number;
-	offset: number;
+export interface ActQueryOptions extends Omit<ActQueryParams, 'type'> {
+	type?: string; // Broader than ActQueryParams
+	limit: number;  // Make required
+	offset: number; // Make required
 	sortBy?: 'createdAt' | 'updatedAt' | 'title';
 	sortOrder?: 'asc' | 'desc';
 }
@@ -82,6 +82,42 @@ export interface CreateActParams {
 	status: string;
 	syncPreferences: object;
 	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Extended act query options with advanced filtering and pagination
+ */
+export interface ExtendedActQueryOptions extends Omit<ActQueryOptions, 'sortBy'> {
+	// Additional filtering
+	performerId?: string;
+	dateRange?: {
+		start: string;
+		end: string;
+	};
+	status?: 'active' | 'archived' | 'cancelled';
+	capabilities?: string[];
+	
+	// Page-based pagination (in addition to offset/limit)
+	page?: number;
+	pageSize?: number;
+	
+	// Extended sorting options
+	sortBy?: 'createdAt' | 'updatedAt' | 'title' | 'territory';
+}
+
+/**
+ * Paginated act query result
+ */
+export interface PaginatedActResult {
+	acts: CarnivalRecord[];
+	pagination: {
+		currentPage: number;
+		pageSize: number;
+		totalItems: number;
+		totalPages: number;
+		hasNext: boolean;
+		hasPrevious: boolean;
+	};
 }
 
 export interface RecordMetadata {

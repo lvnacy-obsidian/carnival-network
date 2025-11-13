@@ -4,6 +4,23 @@
  */
 
 /**
+ * Analytics exports
+ * - ActivityAnalytics
+ * - AnalyticsData
+ * - AnalyticsQueryParams
+ * - AnalyticsResponse
+ * - CapabilityAnalytics
+ * - CarnivalActivity
+ * - CarnivalTopology
+ * - MetricDataPoint
+ * - ObservabilityConfig
+ * - PerformanceAnalytics
+ * - RecordAnalytics
+ * - TerritoryAnalytics
+ */
+export * from './analytics-types';
+
+/**
  * API Requst Types
  * - APIRequest
  * - AuthenticatedRequest
@@ -83,9 +100,20 @@ export * from './logging-types';
 export * from './network-ops-types';
 
 /**
+ * Observability exports
+ * - DeadLetterEntry
+ * - MetricDataPoint
+ * - ObservabilityConfig
+ * - ObservabilityProvider
+ * - ProviderHealthStatus
+ * - ProviderMetrics
+ * - RetryConfig
+ */
+export * from './observability-types';
+
+/**
  * Query exports
  * - ActQueryParams
- * - AnalyticsQueryParams
  * - CarnivalQuery
  * - QueryResult
  */
@@ -98,6 +126,8 @@ export * from './query-types';
  * - ActSyncPreferences
  * - CarnivalRecord
  * - CreateActParams
+ * - ExtendedActQueryOptions
+ * - PaginatedActResult
  * - RecordMetadata
  */
 export * from './records-types';

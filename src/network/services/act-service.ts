@@ -1,4 +1,3 @@
-// services/record-service.ts
 import { Log } from '../../utils/logger';
 import { fetchWithRetry } from '../http-client';
 import { TerritoryAccessService } from './territory-access-service';
@@ -13,8 +12,10 @@ import type {
 	CarnivalConfig,
 	CarnivalRecord,
 	CreateActParams,
+	ExtendedActQueryOptions,
 	LogContext,
 	NetworkRequestResponse,
+	PaginatedActResult,
 	RegistryEntry,
 	SearchOptions,
 	SearchResult
@@ -27,16 +28,28 @@ const actLogger: LogContext = {
 
 /**
  * 🎭 Handles act (record) operations - querying, creating, broadcasting
+ * 
+ * IMPORTANT: This service now maintains an in-memory act store.
+ * In production, this would be backed by a persistent database or file system.
  */
 export class ActService implements ActServiceInterface {
+	// In-memory act storage (TODO: Replace with persistent storage)
+	private actStore: Map<string, CarnivalRecord> = new Map();
+	private actsByTerritory: Map<string, Set<string>> = new Map();
+	private actsByType: Map<string, Set<string>> = new Map();
+	private actsByPerformer: Map<string, Set<string>> = new Map();
+
 	constructor(
 		private readonly territoryAccess: TerritoryAccessService,
 		private readonly config: CarnivalConfig
-	) {}
+	) {
+		// Initialize with some mock data for testing
+		this.seedMockData();
+	}
 
 	/**
 	 * ============================================================================
-	 * RECORD CREATION & BROADCAST
+	 * ACT CREATION & BROADCAST
 	 * ============================================================================
 	 */
 
@@ -45,11 +58,11 @@ export class ActService implements ActServiceInterface {
 	 */
 	createAct(params: CreateActParams): CarnivalRecord {
 		const record: CarnivalRecord = {
-			id: this.generateActId(),
+			id: params.id ?? this.generateActId(),
 			title: params.title,
 			territory: params.territory,
 			actType: params.actType,
-			content: params.content,
+			content: params.content ?? '',
 			metadata: {
 				...params.metadata,
 				createdAt: new Date().toISOString()
@@ -62,6 +75,11 @@ export class ActService implements ActServiceInterface {
 				targetTerritories: [params.territory]
 			}
 		};
+
+		// Store the act
+		this.storeAct(record);
+
+		Log.log(actLogger, `🎭 Created act: ${record.title} (${record.id})`);
 
 		return record;
 	}
@@ -147,6 +165,9 @@ export class ActService implements ActServiceInterface {
 					'Performer registry is not initialized'
 				);
 			}
+
+			// Store locally first
+			this.storeAct(record);
 			
 			const allPerformers = this.territoryAccess.getAllPerformers();
 			let targetPerformers = allPerformers;
@@ -182,11 +203,11 @@ export class ActService implements ActServiceInterface {
 					
 					if (response.ok) {
 						Log.log(actLogger, 
-							`Record broadcast successful to ${performer.territoryName} (${performer.performerId})`
+							`Act broadcast successful to ${performer.territoryName} (${performer.performerId})`
 						);
 					} else {
 						Log.warn(actLogger, 
-							`Record broadcast failed to ${performer.territoryName}: ${response.status}`
+							`Act broadcast failed to ${performer.territoryName}: ${response.status}`
 						);
 					}
 				} catch (error) {
@@ -195,7 +216,7 @@ export class ActService implements ActServiceInterface {
 			});
 			
 			await Promise.allSettled(broadcastPromises);
-			Log.log(actLogger, `Record ${record.id} broadcast to ${targetPerformers.length} performers`);
+			Log.log(actLogger, `Act ${record.id} broadcast to ${targetPerformers.length} performers`);
 			
 		} catch (error) {
 			Log.error(actLogger, 'Failed to broadcast record:', error);
@@ -210,116 +231,126 @@ export class ActService implements ActServiceInterface {
 	 */
 
 	/**
-	 * Query records based on parameters
-	 */
-	queryActs(params: ActQueryOptions): CarnivalRecord[] {
-		try {
-			const allPerformers = this.territoryAccess.getAllPerformers();
-			
-			const filteredPerformers = params.territory 
-				? allPerformers.filter(performer => performer.territoryName === params.territory)
-				: allPerformers;
-			
-			const records: CarnivalRecord[] = [];
-			
-			for (const performer of filteredPerformers) {
-				if (performer.capabilities.includes('changelog_sync') && 
-					(!params.type || params.type === 'changelog')) {
-					records.push(this.createChangelogAct(performer));
-				}
-				
-				if (performer.capabilities.includes('conversation_sync') && 
-					(!params.type || params.type === 'conversation')) {
-					records.push(this.createConversationAct(performer));
-				}
-			}
-			
-			const startIndex = params.offset;
-			const endIndex = startIndex + params.limit;
-			return records.slice(startIndex, endIndex);
-			
-		} catch (error) {
-			Log.error(actLogger, 'Failed to query records:', error);
-			return [];
-		}
-	}
-
-	/**
-	 * Count records matching parameters
+	 * Count acts matching parameters
 	 */
 	countActs(params: ActCountOptions): number {
 		try {
-			const allPerformers = this.territoryAccess.getAllPerformers();
-			
-			const filteredPerformers = params.territory 
-				? allPerformers.filter(performer => performer.territoryName === params.territory)
-				: allPerformers;
-			
-			let count = 0;
-			for (const performer of filteredPerformers) {
-				if (!params.type || params.type === 'changelog') {
-					if (performer.capabilities.includes('changelog_sync')) {
-						count++;
-					}
-				}
-				if (!params.type || params.type === 'conversation') {
-					if (performer.capabilities.includes('conversation_sync')) {
-						count++;
-					}
-				}
+			let acts = Array.from(this.actStore.values());
+
+			if (params.territory) {
+				acts = acts.filter(act => act.territory === params.territory);
 			}
-			
-			return count;
+
+			if (params.type) {
+				acts = acts.filter(act => act.actType === params.type);
+			}
+
+			if (params.status) {
+				acts = acts.filter(act => act.status === params.status);
+			}
+
+			return acts.length;
 		} catch (error) {
-			Log.error(actLogger, 'Failed to count records:', error);
+			Log.error(actLogger, 'Failed to count acts:', error);
 			return 0;
 		}
 	}
 
 	/**
-	 * Perform search across territories
+	 * Get a specific act by ID
+	 */
+	getAct(actId: string): CarnivalRecord | null {
+		return this.actStore.get(actId) ?? null;
+	}
+
+	/**
+	 * List acts with optional filtering
+	 */
+	listActs(filter?: {
+		territory?: string;
+		type?: string;
+		status?: 'active' | 'archived' | 'cancelled';
+		limit?: number;
+	}): CarnivalRecord[] {
+		const options: ActQueryOptions = {
+			territory: filter?.territory,
+			type: filter?.type,
+			limit: filter?.limit ?? 100,
+			offset: 0
+		};
+
+		return this.queryActs(options);
+	}
+
+	/**
+	 * Perform search across acts
 	 */
 	performSearch(params: SearchOptions): SearchResult[] {
 		try {
 			const results: SearchResult[] = [];
 			const query = params.query.toLowerCase();
 			
-			const allPerformers = this.territoryAccess.getAllPerformers();
-			
-			for (const performer of allPerformers) {
-				if (params.territories.length > 0 && 
-					!params.territories.includes(performer.territoryName)) {
-					continue;
-				}
-				
+			let acts = Array.from(this.actStore.values());
+
+			// Filter by territories if specified
+			if (params.territories && params.territories.length > 0) {
+				acts = acts.filter(act => params.territories.includes(act.territory));
+			}
+
+			// Filter by types if specified in filters
+			if (params.filters?.actTypes && params.filters.actTypes.length > 0) {
+				acts = acts.filter(act => params.filters?.actTypes?.includes(act.actType));
+			}
+
+			// Search in title and content
+			for (const act of acts) {
 				const searchableText = `
-					${ performer.territoryName } 
-					${ performer.performerId } 
-					${ performer.endpoint } 
-					${ performer.capabilities.join(' ') }
+					${act.title}
+					${act.content}
+					${act.territory}
+					${act.actType}
 				`.toLowerCase();
-				
+
 				if (searchableText.includes(query)) {
+					const matchedFields: string[] = [];
+					if (act.title.toLowerCase().includes(query)) {
+						matchedFields.push('title');
+					}
+					if (act.content.toLowerCase().includes(query)) {
+						matchedFields.push('content');
+					}
+					if (act.territory.toLowerCase().includes(query)) {
+						matchedFields.push('territory');
+					}
+
+					// Calculate relevance (simple scoring)
+					let relevance = 0;
+					if (act.title.toLowerCase().includes(query)) {
+						relevance += 0.5;
+					}
+					if (act.content.toLowerCase().includes(query)) {
+						relevance += 0.3;
+					}
+					relevance += matchedFields.length * 0.1;
+
 					results.push({
-						id: `search-result-${ performer.performerId }`,
-						title: `${ performer.territoryName } Territory Performer`,
-						type: 'network_performer',
-						territory: performer.territoryName,
-						content: `
-							Performer ID: ${ performer.performerId }
-							Endpoint: ${ performer.endpoint }
-							Capabilities: ${ performer.capabilities.join(', ') }
-						`,
-						matchedFields: ['territoryName', 'performerId', 'capabilities'],
-						relevance: 0.8,
-						lastSeen: performer.lastSeen as string
+						id: act.id,
+						title: act.title,
+						type: act.actType,
+						territory: act.territory,
+						content: this.generateSummary(act),
+						matchedFields,
+						relevance,
+						lastSeen: act.updatedAt ?? act.createdAt,
+						metadata: act.metadata
 					});
 				}
 			}
+
+			// Sort by relevance
+			results.sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0));
 			
-			return results
-				.sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0))
-				.slice(0, params.limit);
+			return results.slice(0, params.limit);
 			
 		} catch (error) {
 			Log.error(actLogger, 'Search failed:', error);
@@ -328,10 +359,212 @@ export class ActService implements ActServiceInterface {
 	}
 
 	/**
+	 * Query acts based on parameters
+	 */
+	queryActs(options: ExtendedActQueryOptions): CarnivalRecord[] {
+		try {
+			let acts = Array.from(this.actStore.values());
+
+			// Apply filters
+			if (options.territory) {
+				acts = acts.filter(act => act.territory === options.territory);
+			}
+
+			if (options.type) {
+				acts = acts.filter(act => act.actType === options.type);
+			}
+			
+			if (options.performerId) {
+				acts = acts.filter(act => 
+					act.metadata.performerId === options.performerId
+				);
+			}
+
+			if (options.status) {
+				acts = acts.filter(act => act.status === options.status);
+			}
+
+			if (options.dateRange) {
+				const start = new Date(options.dateRange.start).getTime();
+				const end = new Date(options.dateRange.end).getTime();
+				acts = acts.filter(act => {
+					const created = new Date(act.createdAt).getTime();
+					return created >= start && created <= end;
+				});
+			}
+
+			// Apply sorting
+			if (options.sortBy) {
+				acts = this.sortActs(acts, options.sortBy, options.sortOrder ?? 'desc');
+			} else {
+				// Default: sort by creation date (newest first)
+				acts.sort((a, b) => 
+					new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+				);
+			}
+
+			// Apply pagination
+			const offset = options.offset ?? 0;
+			const limit = options.limit ?? 10;
+			
+			return acts.slice(offset, offset + limit);
+			
+		} catch (error) {
+			Log.error(actLogger, 'Failed to query acts:', error);
+			return [];
+		}
+	}
+
+	/**
+	 * Query acts with pagination support
+	 */
+	queryActsPaginated(options: ExtendedActQueryOptions): PaginatedActResult {
+		const page = options.page ?? 1;
+		const pageSize = options.pageSize ?? 10;
+
+		// Update offset/limit for pagination
+		const paginatedOptions = {
+			...options,
+			offset: (page - 1) * pageSize,
+			limit: pageSize
+		};
+
+		const acts = this.queryActs(paginatedOptions);
+		const totalItems = this.countActs({
+			territory: options.territory,
+			type: options.type,
+			status: options.status
+		});
+
+		const totalPages = Math.ceil(totalItems / pageSize);
+
+		return {
+			acts,
+			pagination: {
+				currentPage: page,
+				pageSize,
+				totalItems,
+				totalPages,
+				hasNext: page < totalPages,
+				hasPrevious: page > 1
+			}
+		};
+	}
+
+	/**
 	 * ============================================================================
-	 * NETWORK UTILITIES
+	 * PRIVATE HELPER METHODS
 	 * ============================================================================
 	 */
+
+	/**
+	 * Store an act in memory with indexing
+	 */
+	private storeAct(act: CarnivalRecord): void {
+		// Store in main map
+		this.actStore.set(act.id, act);
+
+		// Index by territory
+		if (!this.actsByTerritory.has(act.territory)) {
+			this.actsByTerritory.set(act.territory, new Set());
+		}
+		this.actsByTerritory.get(act.territory)?.add(act.id);
+
+		// Index by type
+		if (!this.actsByType.has(act.actType)) {
+			this.actsByType.set(act.actType, new Set());
+		}
+		this.actsByType.get(act.actType)?.add(act.id);
+
+		// Index by performer if available
+		if (act.metadata.performerId) {
+			const performerId = act.metadata.performerId as string;
+			if (!this.actsByPerformer.has(performerId)) {
+				this.actsByPerformer.set(performerId, new Set());
+			}
+			this.actsByPerformer.get(performerId)?.add(act.id);
+		}
+	}
+
+	/**
+	 * Sort acts by specified field and order
+	 */
+	private sortActs(
+		acts: CarnivalRecord[], 
+		sortBy: 'createdAt' | 'updatedAt' | 'title' | 'territory',
+		order: 'asc' | 'desc' = 'desc'
+	): CarnivalRecord[] {
+		return acts.sort((a, b) => {
+			let comparison = 0;
+
+			switch (sortBy) {
+				case 'createdAt':
+					comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+					break;
+				case 'updatedAt':
+					const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : new Date(a.createdAt).getTime();
+					const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : new Date(b.createdAt).getTime();
+					comparison = aTime - bTime;
+					break;
+				case 'title':
+					comparison = a.title.localeCompare(b.title);
+					break;
+				case 'territory':
+					comparison = a.territory.localeCompare(b.territory);
+					break;
+			}
+
+			return order === 'asc' ? comparison : -comparison;
+		});
+	}
+
+	/**
+	 * Seed mock data for testing
+	 */
+	private seedMockData(): void {
+		// Create a few mock acts for testing
+		const mockActs: CarnivalRecord[] = [
+			{
+				id: 'act-mock-1',
+				title: 'Initial Territory Setup',
+				territory: 'backstage',
+				actType: 'changelog',
+				content: 'Set up initial territory configuration and performer registration',
+				metadata: {
+					performerId: 'performer-1',
+					createdBy: 'system'
+				},
+				createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+				status: 'active',
+				syncPreferences: {
+					requireAck: true,
+					broadcastToAll: false,
+					targetTerritories: ['backstage']
+				}
+			},
+			{
+				id: 'act-mock-2',
+				title: 'Network Discovery Completed',
+				territory: 'backstage',
+				actType: 'conversation',
+				content: 'Successfully discovered 5 performers across 3 territories',
+				metadata: {
+					performerId: 'performer-1',
+					createdBy: 'network-service'
+				},
+				createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+				status: 'active',
+				syncPreferences: {
+					requireAck: false,
+					broadcastToAll: true,
+					targetTerritories: []
+				}
+			}
+		];
+
+		mockActs.forEach(act => this.storeAct(act));
+		Log.log(actLogger, `🎭 Seeded ${mockActs.length} mock acts for testing`);
+	}
 
 	private async makeNetworkRequest(
 		url: string,
@@ -344,7 +577,7 @@ export class ActService implements ActServiceInterface {
 				headers: {
 					'Content-Type': 'application/json',
 					'X-Carnival-Source': 'external-api-service',
-					'User-Agent': 'Carnival-Records-External-API/1.0'
+					'User-Agent': 'Carnival-Network-Act-Service/1.0'
 				}
 			};
 			
@@ -383,6 +616,7 @@ export class ActService implements ActServiceInterface {
 	}
 
 	cleanup(): void {
-		// Cleanup if needed
+		// Could save acts to persistent storage here
+		Log.log(actLogger, '🎭 Act service cleanup complete');
 	}
 }

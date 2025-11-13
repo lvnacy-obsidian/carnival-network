@@ -5,7 +5,6 @@
  * 
  * Index of exports:
  * - ActQueryParams - Record/"Act" query parameters
- * - AnalyticsQueryParams - Analytics query parameters
  * - CarnivalQuery - Carnival query structure
  * - QueryResult - Query result
  */
@@ -18,14 +17,6 @@ export interface ActQueryParams {
 	type?: 'changelog' | 'conversation';
 	limit?: number;
 	offset?: number;
-}
-
-/**
- * Analytics query parameters
- */
-export interface AnalyticsQueryParams {
-	timeframe?: string;  // e.g., '7d', '30d', '24h'
-	metrics?: Array<'records' | 'activity' | 'capabilities' | 'performance'>;
 }
 
 /**
