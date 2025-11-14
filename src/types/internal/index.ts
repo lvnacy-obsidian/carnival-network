@@ -12,6 +12,12 @@
 export * from './authentication-types';
 
 /**
+ * Buffer exports
+ * - BufferedMetric
+ */
+export * from './buffer-types';
+
+/**
  * Certificate exports
  * - Certificate
  * - CertificateInfo

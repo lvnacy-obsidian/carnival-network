@@ -1,8 +1,8 @@
 # Carnival Records Plugin - Network Development Roadmap
 
-**Last Updated**: 2025-11-12  
-**Status**: Phase 2/5 Complete + Major Phase 3 Progress (Phases 4-5 Planned)  
-**Next Major Phase**: Complete Phase 3 (API Implementation) + Phase 4 (Database Integration)
+**Last Updated**: 2025-11-14  
+**Status**: Phase 2/5 Complete + Major Phase 3 Progress (Observability + Metric Retention Complete)  
+**Next Major Phase**: Complete Phase 3.2 (Archive Abstraction) + Phase 3.3 (External API) + Phase 4 (Database Integration)
 
 ---
 
@@ -122,7 +122,7 @@ This roadmap outlines the complete network infrastructure development for the Ca
 ### Phase 3: Advanced API & External Integration (🔄 In Progress)
 **Timeline**: Current development cycle (Nov 2025)  
 **Dependencies**: Phase 2 complete ✅, functional network data available ✅  
-**Recent Work**: Major refactoring and type system improvements complete
+**Recent Work**: Observability system with metric retention and buffer management complete ✅
 
 #### 3.1 Type System & Service Architecture (✅ Complete - Nov 2025)
 **Scope**: Establish proper type hierarchies and service interfaces
@@ -144,9 +144,24 @@ This roadmap outlines the complete network infrastructure development for the Ca
 - ✅ **CarnivalQueryService Refactored** - Proper interface implementation
   - Implements `QueryServiceInterface` with all 3 required methods
   - `queryTerritory()`, `queryAllTerritories()`, `getPerformerStatus()`
-  - Observability framework architecture complete (providers pending)
-  - Metric buffering and periodic flushing system
-  - Support for Prometheus, Datadog, and custom providers
+  - Observability framework with 5 provider implementations complete
+  - Metric buffering with comprehensive buffer management
+  - Automatic periodic flushing with retry logic and dead letter queue
+  - Support for Prometheus, Datadog, Sentry, Elasticsearch, and custom HTTP providers
+- ✅ **Metric Retention & Buffer Management** - Production-ready buffering system
+  - `MetricBufferManager` with configurable size limits (default: 10,000 metrics)
+  - Three overflow strategies: drop-oldest, drop-newest, drop-random
+  - Age-based expiration with automatic cleanup (default: 5 min max age)
+  - Retry tracking with max attempts (default: 3 retries)
+  - Comprehensive statistics: added, flushed, dropped metrics with reasons
+  - Background cleanup every 30 seconds
+  - State export/import for persistence
+- ✅ **Observability Dashboard** - Real-time monitoring and alerting
+  - `ObservabilityDashboardBuilder` with health status determination
+  - Buffer health assessment with actionable recommendations
+  - Alert generation with severity levels (critical/error/warning/info)
+  - Provider health monitoring and circuit breaker integration
+  - Console and JSON output formatting
 - ✅ **ActService Methods Implemented**
   - `queryActs()` - Full filtering and pagination support
   - `countActs()` - Count matching records

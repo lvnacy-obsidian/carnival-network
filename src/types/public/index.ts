@@ -101,9 +101,13 @@ export * from './network-ops-types';
 
 /**
  * Observability exports
+ * - BufferConfig
+ * - BufferStats
  * - DeadLetterEntry
  * - MetricDataPoint
+ * - ObservabilityAlert
  * - ObservabilityConfig
+ * - ObservabilityDashboard
  * - ObservabilityProvider
  * - ProviderHealthStatus
  * - ProviderMetrics

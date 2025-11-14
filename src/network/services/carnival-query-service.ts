@@ -1,6 +1,7 @@
 import { Log } from '../../utils/logger';
 import { TerritoryAccessService } from './territory-access-service';
 import { ObservabilityProviderFactory } from './observability';
+import { MetricBufferManager } from './observability/metric-buffer-manager';
 import { NotFoundError } from '../../errors';
 import { safeGetDateFromMetadata } from 'src/utils/date-utils';
 import type {
@@ -36,43 +37,59 @@ const queryLogger: LogContext = {
  * advanced analytics and observability features.
  */
 export class CarnivalQueryService implements QueryServiceInterface {
-	private startTime: number;
-	private observabilityConfig?: ObservabilityConfig;
 	private observabilityProvider?: ObservabilityProvider;
-	private metricsBuffer: MetricDataPoint[] = [];
-	private flushInterval?: number;
+	private metricBuffer: MetricBufferManager;
+	private flushInterval?: ReturnType<typeof setInterval>;
+	private metricsEnabled = false;
 
 	constructor(
-		private readonly territoryAccess: TerritoryAccessService,
-		private readonly config: CarnivalConfig,
+		private readonly registryAccess: TerritoryAccessService,
+		private readonly startTime: number,
 		observabilityConfig?: ObservabilityConfig
 	) {
 		this.startTime = Date.now();
+
+		// Initialize metric buffer
+		this.metricBuffer = new MetricBufferManager({
+			maxSize: observabilityConfig?.maxBufferSize || 10000,
+			maxAgeMs: observabilityConfig?.flushIntervalMs || 60000,
+			overflowStrategy: 'drop-oldest',
+			enableMetrics: true,
+			warningThreshold: 80
+		});
 		
 		if (observabilityConfig?.enabled) {
-			this.observabilityConfig = observabilityConfig;
-			this.initializeObservability();
+			this.initializeObservability(observabilityConfig);
 		}
 	}
 
 	/**
 	 * Initialize observability provider
 	 */
-	private async initializeObservability(): Promise<void> {
-		if (!this.observabilityConfig) {
-			return;
-		}
-
+	private async initializeObservability(config: ObservabilityConfig): Promise<void> {
 		try {
+			Log.log(queryLogger, `📊 Initializing ${config.provider} observability...`);
+
+			// Create and initialize provider
 			this.observabilityProvider = await ObservabilityProviderFactory.createAndInitialize(
-				this.observabilityConfig
+				config,
+				{
+					validateConfig: true,
+					testConnection: config.testConnectionOnInit || false,
+					throwOnValidationError: false // Don't fail if observability can't initialize
+				}
 			);
-			this.startMetricsFlush();
-			Log.log(queryLogger, `📊 Observability initialized: ${this.observabilityConfig.provider}`);
+
+			this.metricsEnabled = true;
+
+			// Start flush interval
+			this.startFlushInterval(config.flushIntervalMs || 60000);
+
+			Log.log(queryLogger, `✅ ${config.provider} observability initialized`);
 		} catch (error) {
-			Log.error(queryLogger, 'Failed to initialize observability provider:', error);
-			// Disable observability on initialization failure
-			this.observabilityConfig = undefined;
+			Log.error(queryLogger, '❌ Failed to initialize observability:', error);
+			this.observabilityProvider = undefined;
+			this.metricsEnabled = false;
 		}
 	}
 
@@ -88,10 +105,18 @@ export class CarnivalQueryService implements QueryServiceInterface {
 	async queryTerritory(territory: string, query: CarnivalQuery): Promise<QueryResult> {
 		try {
 			Log.log(queryLogger, `🔍 Querying territory: ${territory} (type: ${query.type})`);
+			const now = Date.now().toString();
+			const territoryMetric: MetricDataPoint = {
+				name: 'query_territory',
+				value: 1,
+				timestamp: now,
+				tags: { territory, queryType: query.type },
+				type: 'counter'
+			}
 			
-			this.recordMetric('query_territory', 1, { territory, queryType: query.type });
+			this.recordMetric(territoryMetric);
 
-			const performers = this.territoryAccess.getPerformersByTerritory(territory);
+			const performers = this.registryAccess.getPerformersByTerritory(territory);
 			
 			if (performers.length === 0) {
 				return {
@@ -149,10 +174,19 @@ export class CarnivalQueryService implements QueryServiceInterface {
 	async queryAllTerritories(query: CarnivalQuery): Promise<QueryResult[]> {
 		try {
 			Log.log(queryLogger, `🔍 Querying all territories (type: ${query.type})`);
-			
-			this.recordMetric('query_all_territories', 1, { queryType: query.type });
+			const now = Date.now().toString();
 
-			const territories = this.territoryAccess.getAllTerritories();
+			const allTerritoriesMetric: MetricDataPoint = {
+				name: 'query_all_territories',
+				value: 1,
+				timestamp: now,
+				tags: { queryType: query.type },
+				type: 'counter'
+			}
+			
+			this.recordMetric(allTerritoriesMetric);
+
+			const territories = this.registryAccess.getAllTerritories();
 			const results: QueryResult[] = [];
 
 			for (const territory of territories) {
@@ -173,7 +207,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 	 */
 	async getPerformerStatus(performerId: string): Promise<PerformanceStatus | null> {
 		try {
-			const performer = this.territoryAccess.getPerformer(performerId);
+			const performer = this.registryAccess.getPerformer(performerId);
 			
 			if (!performer) {
 				throw new NotFoundError('Performer', performerId);
@@ -211,7 +245,15 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				}
 			};
 
-			this.recordMetric('performer_status_check', 1, { performerId, status });
+			const performerStatusMetric: MetricDataPoint = {
+				name: 'performer_status_check',
+				value: 1,
+				timestamp: now.toString(),
+				tags: { performerId, status },
+				type: 'counter'
+			}
+
+			this.recordMetric(performerStatusMetric);
 
 			return performanceStatus;
 
@@ -237,7 +279,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 	 */
 	getCarnivalTopology(): CarnivalTopology {
 		try {
-			const allPerformers = this.territoryAccess.getAllPerformers();
+			const allPerformers = this.registryAccess.getAllPerformers();
 			
 			const territories: Record<string, number> = {};
 			const allCapabilities = new Set<string>();
@@ -250,10 +292,28 @@ export class CarnivalQueryService implements QueryServiceInterface {
 			
 			const recentThreshold = Date.now() - (5 * 60 * 1000);
 			const activeRegistries = allPerformers.filter(performer => {
-				return performer.lastSeen && new Date(performer.lastSeen).getTime() > recentThreshold;
+				if (!performer.lastSeen) {
+					return false;
+				}
+				return new Date(performer.lastSeen).getTime() > recentThreshold;
 			}).length;
 
-			const topology: CarnivalTopology = {
+			// Record topology metrics
+			this.recordMetric({
+				name: 'carnival.network.performers_total',
+				value: allPerformers.length,
+				type: 'gauge',
+				timestamp: new Date().toISOString()
+			});
+
+			this.recordMetric({
+				name: 'carnival.network.territories_total',
+				value: Object.keys(territories).length,
+				type: 'gauge',
+				timestamp: new Date().toISOString()
+			});
+
+			return {
 				territories,
 				totalPerformers: allPerformers.length,
 				activeRegistries,
@@ -261,13 +321,6 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				lastUpdated: new Date().toISOString()
 			};
 
-			// Record metrics
-			this.recordMetric('topology_total_performers', allPerformers.length);
-			this.recordMetric('topology_active_registries', activeRegistries);
-			this.recordMetric('topology_territory_count', Object.keys(territories).length);
-			
-			return topology;
-			
 		} catch (error) {
 			Log.error(queryLogger, 'Failed to get carnival topology:', error);
 			return {
@@ -288,7 +341,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 			const activities: CarnivalActivity[] = [];
 			const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
 			
-			const allPerformers = this.territoryAccess.getAllPerformers();
+			const allPerformers = this.registryAccess.getAllPerformers();
 			
 			for (const performer of allPerformers) {
 				// Discovery events
@@ -327,7 +380,15 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
 			);
 
-			this.recordMetric('recent_activity_count', activities.length, { hours: hours.toString() });
+			const recentActivityMetric: MetricDataPoint = {
+				name: 'recent_activity_count',
+				value: activities.length,
+				timestamp: hours.toString(),
+				tags: { hours:  hours.toString() },
+				type: 'counter'
+			}
+
+			this.recordMetric(recentActivityMetric);
 			
 			return activities.slice(0, 100); // Limit to 100 most recent
 			
@@ -343,7 +404,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 	generateAnalytics(metrics: string[]): AnalyticsData {
 		try {
 			
-			const allPerformers = this.territoryAccess.getAllPerformers();
+			const allPerformers = this.registryAccess.getAllPerformers();
 			
 			const analytics: AnalyticsData = {};
 			
@@ -389,12 +450,16 @@ export class CarnivalQueryService implements QueryServiceInterface {
 	 */
 	getConnectedPerformersCount(): number {
 		try {
-			const allPerformers = this.territoryAccess.getAllPerformers();
+			const allPerformers = this.registryAccess.getAllPerformers();
 			const recentThreshold = Date.now() - (10 * 60 * 1000); // 10 minutes
+			const connectedPerformers = allPerformers.filter(performer => {
+				if (!performer.lastSeen) {
+					return false;
+				}
+				return new Date(performer.lastSeen).getTime() > recentThreshold;
+			});
 			
-			return allPerformers.filter(performer => {
-				return performer.lastSeen && new Date(performer.lastSeen).getTime() > recentThreshold;
-			}).length;
+			return connectedPerformers.length;
 			
 		} catch (error) {
 			Log.error(queryLogger, 'Failed to get connected performers count:', error);
@@ -535,81 +600,203 @@ export class CarnivalQueryService implements QueryServiceInterface {
 	 */
 
 	/**
-	 * Record a metric for observability
+	 * Get metric buffer statistics
 	 */
-	private recordMetric(
-		name: string, 
-		value: number, 
-		tags?: Record<string, string>,
-		type: 'counter' | 'gauge' | 'histogram' = 'gauge'
-	): void {
-		if (!this.observabilityConfig?.enabled) {
+	getBufferStats() {
+		return this.metricBuffer.getStats();
+	}
+
+	/**
+	 * Get observability provider metrics
+	 */
+	getObservabilityMetrics() {
+		if (!this.observabilityProvider) {
+			return null;
+		}
+
+		return {
+			providerMetrics: this.observabilityProvider.getProviderMetrics?.(),
+			deadLetterQueue: this.observabilityProvider.getDeadLetterStats?.(),
+			bufferStats: this.metricBuffer.getStats()
+		};
+	}
+
+	/**
+	 * Record a metric
+	 */
+	private recordMetric(metric: MetricDataPoint): void {
+		if (!this.metricsEnabled) {
 			return;
 		}
 
-		const metric: MetricDataPoint = {
-			name: `carnival.${name}`,
-			value,
-			timestamp: new Date().toISOString(),
-			tags,
-			type
-		};
+		const result = this.metricBuffer.add([metric]);
 
-		this.metricsBuffer.push(metric);
-
-		// Flush if buffer is full
-		if (this.metricsBuffer.length >= (this.observabilityConfig.batchSize ?? 100)) {
-			this.flushMetrics();
+		if (result.dropped > 0) {
+			// Record that we dropped metrics (meta-metric!)
+			this.recordMetric({
+				name: 'carnival.observability.metrics_dropped',
+				value: result.dropped,
+				type: 'counter',
+				timestamp: new Date().toISOString(),
+				tags: {
+					reason: result.reason || 'unknown'
+				}
+			});
 		}
 	}
 
 	/**
-	 * Flush metrics to observability endpoint
+	 * Record multiple metrics
 	 */
-	private async flushMetrics(): Promise<void> {
-		if (!this.observabilityConfig?.enabled || !this.observabilityProvider || this.metricsBuffer.length === 0) {
+	private recordMetrics(metrics: MetricDataPoint[]): void {
+		if (!this.metricsEnabled || metrics.length === 0) {
 			return;
 		}
 
-		const metrics = [...this.metricsBuffer];
-		this.metricsBuffer = [];
+		const result = this.metricBuffer.add(metrics);
+
+		if (result.dropped > 0) {
+			Log.warn(
+				queryLogger,
+				`⚠️ Dropped ${result.dropped}/${metrics.length} metrics: ${result.reason}`
+			);
+		}
+	}
+
+	/**
+	 * Flush metrics to observability provider
+	 */
+	async flushMetrics(): Promise<{
+		flushed: number;
+		failed: number;
+		dropped: number;
+	}> {
+		if (!this.observabilityProvider || !this.metricsEnabled) {
+			return { flushed: 0, failed: 0, dropped: 0 };
+		}
+
+		const startTime = Date.now();
+		const batchSize = 100; // Flush 100 metrics at a time
+		let totalFlushed = 0;
+		let totalFailed = 0;
 
 		try {
-			await this.observabilityProvider.sendMetrics(metrics);
-			Log.log(queryLogger, `📊 Flushed ${metrics.length} metrics to ${this.observabilityConfig.provider}`);
-		} catch (error) {
-			Log.error(queryLogger, 'Failed to flush metrics:', error);
-			// Re-add metrics to buffer to try again (with limit)
-			const MAX_BUFFER_SIZE = this.observabilityConfig.maxBufferSize ?? 10000;
-			if (this.metricsBuffer.length + metrics.length <= MAX_BUFFER_SIZE) {
-				this.metricsBuffer.unshift(...metrics);
-			} else {
-				Log.warn(queryLogger, `Dropping ${metrics.length} metrics due to buffer overflow`);
+			// Get batch to flush
+			const batch = this.metricBuffer.getFlushBatch(batchSize);
+
+			if (batch.length === 0) {
+				return { flushed: 0, failed: 0, dropped: 0 };
 			}
+
+			// Send to provider
+			await this.observabilityProvider.sendMetrics(batch);
+
+			// Mark as flushed
+			this.metricBuffer.markFlushed(batch.length);
+			totalFlushed = batch.length;
+
+			// Record flush metrics
+			this.recordMetric({
+				name: 'carnival.observability.flush_duration',
+				value: Date.now() - startTime,
+				type: 'histogram',
+				timestamp: new Date().toISOString()
+			});
+
+			this.recordMetric({
+				name: 'carnival.observability.metrics_flushed',
+				value: totalFlushed,
+				type: 'counter',
+				timestamp: new Date().toISOString()
+			});
+
+			Log.log(queryLogger, `✅ Flushed ${totalFlushed} metrics in ${Date.now() - startTime}ms`);
+		} catch (error) {
+			Log.error(queryLogger, '❌ Failed to flush metrics:', error);
+
+			// Mark flush as failed (will retry or drop after max attempts)
+			const dropped = this.metricBuffer.markFlushFailed(batchSize, 3);
+			totalFailed = batchSize - dropped;
+
+			// Record failure metric
+			this.recordMetric({
+				name: 'carnival.observability.flush_failed',
+				value: 1,
+				type: 'counter',
+				timestamp: new Date().toISOString()
+			});
 		}
+
+		// Get buffer stats
+		const stats = this.metricBuffer.getStats();
+
+		return {
+			flushed: totalFlushed,
+			failed: totalFailed,
+			dropped: stats.totalDropped
+		};
 	}
 
 	/**
-	 * Start periodic metrics flush
+	 * Start periodic metric flushing
 	 */
-	private startMetricsFlush(): void {
-		const interval = this.observabilityConfig?.flushIntervalMs ?? 60000;
-		this.flushInterval = window.setInterval(() => {
-			this.flushMetrics();
-		}, interval);
+	private startFlushInterval(intervalMs: number): void {
+		if (this.flushInterval) {
+			clearInterval(this.flushInterval);
+		}
+
+		this.flushInterval = setInterval(async () => {
+			await this.flushMetrics();
+		}, intervalMs);
+
+		Log.log(queryLogger, `⏰ Metric flush interval started: ${ intervalMs }ms`);
+	}
+
+	/**
+	 * Stop metric flushing
+	 */
+	private stopFlushInterval(): void {
+		if (this.flushInterval) {
+			clearInterval(this.flushInterval);
+			this.flushInterval = undefined;
+		}
 	}
 
 	/**
 	 * Cleanup
 	 */
 	async cleanup(): Promise<void> {
-		if (this.flushInterval) {
-			clearInterval(this.flushInterval);
-		}
-		this.flushMetrics(); // Final flush
+		try {
+			// Stop flush interval
+			this.stopFlushInterval();
 
-		if (this.observabilityProvider) {
-			await this.observabilityProvider.cleanup();
+			// Flush any remaining metrics
+			if (this.metricsEnabled) {
+				Log.log(queryLogger, '🔄 Flushing remaining metrics before cleanup...');
+				await this.flushMetrics();
+			}
+
+			// Process dead letter queue if provider supports it
+			if (this.observabilityProvider?.processDeadLetterQueue) {
+				Log.log(queryLogger, '📮 Processing dead letter queue...');
+				const result = await this.observabilityProvider.processDeadLetterQueue();
+				Log.log(
+					queryLogger,
+					`📮 DLQ processed: ${result.processed} sent, ${result.failed} failed, ${result.remaining} remaining`
+				);
+			}
+
+			// Cleanup provider
+			if (this.observabilityProvider) {
+				await this.observabilityProvider.cleanup();
+			}
+
+			// Cleanup buffer
+			this.metricBuffer.cleanup();
+
+			Log.log(queryLogger, '🧹 Carnival Query Service cleanup complete');
+		} catch (error) {
+			Log.error(queryLogger, 'Error during cleanup:', error);
 		}
 	}
 }

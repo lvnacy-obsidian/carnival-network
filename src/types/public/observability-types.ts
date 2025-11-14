@@ -4,9 +4,13 @@
  * ============================================================================
  * 
  * Index of exports:
+ * - BufferConfig - Configuration for buffer and metrics
+ * - BufferStats - Stats collection for buffer
  * - DeadLetterEntry - Entry for failed metrics
  * - MetricDataPoint - Individual metric for export
+ * - ObservabilityAlert - Entry for metrics alerts
  * - ObservabilityConfig - Configuration for observability
+ * - ObservabilityDashboard - Interface for dashboard ui
  * - ObservabilityProvider - Interface for creating custom providers
  * - ProviderHealthStatus - Health status of a provider
  * - ProviderMetrics - Performance metrics of a provider
@@ -16,6 +20,48 @@
  * providers within the Carnival Network. Observability providers are
  * responsible for exporting metrics to various monitoring platforms.
  */
+
+/**
+ * Buffer configuration options
+ */
+export interface BufferConfig {
+	/** Maximum number of metrics to buffer */
+	maxSize: number;
+	/** Maximum age of metrics before expiration (milliseconds) */
+	maxAgeMs: number;
+	/** Strategy for handling buffer overflow */
+	overflowStrategy: 'drop-oldest' | 'drop-newest' | 'drop-random';
+	/** Enable internal metrics about buffer performance */
+	enableMetrics: boolean;
+	/** Warning threshold (percentage of maxSize) */
+	warningThreshold: number;
+}
+
+/**
+ * Buffer statistics for monitoring
+ */
+export interface BufferStats {
+	/** Current number of metrics in buffer */
+	currentSize: number;
+	/** Maximum buffer capacity */
+	maxSize: number;
+	/** Total metrics added to buffer */
+	totalAdded: number;
+	/** Total metrics dropped (all reasons) */
+	totalDropped: number;
+	/** Total metrics successfully flushed */
+	totalFlushed: number;
+	/** Metrics dropped due to age expiration */
+	droppedByAge: number;
+	/** Metrics dropped due to buffer overflow */
+	droppedByOverflow: number;
+	/** Age of oldest metric in buffer (milliseconds) */
+	oldestMetricAge?: number;
+	/** Age of newest metric in buffer (milliseconds) */
+	newestMetricAge?: number;
+	/** Buffer utilization as percentage (0-100) */
+	utilizationPercent: number;
+}
 
 /**
  * Dead letter queue for failed metrics
@@ -33,6 +79,17 @@ export interface MetricDataPoint {
 	timestamp: string;
 	tags?: Record<string, string>;
 	type: 'counter' | 'gauge' | 'histogram';
+}
+
+/**
+ * Alert for observability issues
+ */
+export interface ObservabilityAlert {
+	severity: 'info' | 'warning' | 'error' | 'critical';
+	message: string;
+	timestamp: string;
+	component: 'buffer' | 'provider' | 'network';
+	actionable?: string;
 }
 
 export interface ObservabilityConfig {
@@ -70,6 +127,51 @@ export interface ObservabilityConfig {
 	// Connection testing
 	testConnectionOnInit?: boolean;
 	connectionTimeoutMs?: number;
+}
+
+/**
+ * Dashboard data aggregation for UI display
+ */
+export interface ObservabilityDashboard {
+	// Overall health
+	health: {
+		status: 'healthy' | 'degraded' | 'down';
+		message: string;
+		timestamp: string;
+	};
+	
+	// Buffer status
+	buffer: {
+		stats: BufferStats;
+		healthStatus: 'healthy' | 'warning' | 'critical';
+		recommendation?: string;
+	};
+	
+	// Provider status
+	provider: {
+		name: string;
+		healthy: boolean;
+		metrics?: ProviderMetrics;
+		deadLetterQueue?: {
+			queueSize: number;
+			metricsInQueue: number;
+			oldestEntry?: number;
+		};
+		circuitState?: string;
+	} | null;
+	
+	// Recent metrics (last N for display)
+	recentMetrics: MetricDataPoint[];
+	
+	// Alerts
+	alerts: ObservabilityAlert[];
+	
+	// Performance
+	performance: {
+		flushLatency: number[];
+		flushSuccessRate: number;
+		metricsPerSecond: number;
+	};
 }
 
 /**
