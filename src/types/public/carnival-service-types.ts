@@ -33,11 +33,11 @@ import {
  * Act service interface - handles act (record) operations
  */
 export interface ActServiceInterface {
-	createAct(params: CreateActParams): CarnivalRecord;
+	createAct(params: CreateActParams): Promise<CarnivalRecord>;
 	broadcastAct(record: CarnivalRecord): Promise<void>;
-	queryActs(options: ActQueryOptions): CarnivalRecord[];
-	countActs(options: ActCountOptions): number;
-	performSearch(options: SearchOptions): SearchResult[];
+	queryActs(options: ActQueryOptions): Promise<CarnivalRecord[]>;
+	countActs(options: ActCountOptions): Promise<number>;
+	performSearch(options: SearchOptions): Promise<SearchResult[]>;
 	generateActId(): string;
 	generateSummary(record: CarnivalRecord): string;
 }

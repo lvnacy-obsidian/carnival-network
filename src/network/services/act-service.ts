@@ -1,6 +1,7 @@
 import { Log } from '../../utils/logger';
 import { fetchWithRetry } from '../http-client';
 import { TerritoryAccessService } from './territory-access-service';
+import { InMemoryArchive } from '../../archive/in-memory-archive';
 import {
 	NotFoundError,
 	ServiceUnavailableError
@@ -9,6 +10,7 @@ import type {
 	ActCountOptions,
 	ActQueryOptions,
 	ActServiceInterface,
+	ArchiveInterface,
 	CarnivalConfig,
 	CarnivalRecord,
 	CreateActParams,
@@ -33,18 +35,24 @@ const actLogger: LogContext = {
  * In production, this would be backed by a persistent database or file system.
  */
 export class ActService implements ActServiceInterface {
-	// In-memory act storage (TODO: Replace with persistent storage)
-	private actStore: Map<string, CarnivalRecord> = new Map();
-	private actsByTerritory: Map<string, Set<string>> = new Map();
-	private actsByType: Map<string, Set<string>> = new Map();
-	private actsByPerformer: Map<string, Set<string>> = new Map();
+	// Archive Interface
+	private archive: ArchiveInterface;
 
 	constructor(
 		private readonly territoryAccess: TerritoryAccessService,
-		private readonly config: CarnivalConfig
+		private readonly config: CarnivalConfig,
+		archive?: ArchiveInterface
 	) {
-		// Initialize with some mock data for testing
-		this.seedMockData();
+
+		// Default to InMemoryArchive if not provided
+		this.archive = archive ?? new InMemoryArchive();
+
+		Log.log(actLogger, `🎭 ActService initialized with ${this.archive.name}`);
+		
+		// Seed mock data only for InMemoryArchive
+		if (this.archive.name === 'InMemoryArchive') {
+			this.seedMockData();
+		}
 	}
 
 	/**
@@ -56,7 +64,7 @@ export class ActService implements ActServiceInterface {
 	/**
 	 * Create a new act
 	 */
-	createAct(params: CreateActParams): CarnivalRecord {
+	async createAct(params: CreateActParams): Promise<CarnivalRecord> {
 		const record: CarnivalRecord = {
 			id: params.id ?? this.generateActId(),
 			title: params.title,
@@ -76,8 +84,8 @@ export class ActService implements ActServiceInterface {
 			}
 		};
 
-		// Store the act
-		this.storeAct(record);
+		// Store via archive
+		await this.archive.create(record);
 
 		Log.log(actLogger, `🎭 Created act: ${record.title} (${record.id})`);
 
@@ -166,8 +174,13 @@ export class ActService implements ActServiceInterface {
 				);
 			}
 
-			// Store locally first
-			this.storeAct(record);
+			// Store locally first via archive
+			const exists = await this.archive.exists(record.id);
+			if (exists) {
+				await this.archive.update(record.id, record);
+			} else {
+				await this.archive.create(record);
+			}
 			
 			const allPerformers = this.territoryAccess.getAllPerformers();
 			let targetPerformers = allPerformers;
@@ -198,7 +211,7 @@ export class ActService implements ActServiceInterface {
 						requireAck: record.syncPreferences.requireAck
 					};
 					
-					const endpoint = `${performer.endpoint}/carnival/network/broadcast`;
+					const endpoint = `${ performer.endpoint }/carnival/network/broadcast`;
 					const response = await this.makeNetworkRequest(endpoint, 'POST', payload);
 					
 					if (response.ok) {
@@ -216,7 +229,7 @@ export class ActService implements ActServiceInterface {
 			});
 			
 			await Promise.allSettled(broadcastPromises);
-			Log.log(actLogger, `Act ${record.id} broadcast to ${targetPerformers.length} performers`);
+			Log.log(actLogger, `Act ${ record.id } broadcast to ${ targetPerformers.length } performers`);
 			
 		} catch (error) {
 			Log.error(actLogger, 'Failed to broadcast record:', error);
@@ -233,23 +246,13 @@ export class ActService implements ActServiceInterface {
 	/**
 	 * Count acts matching parameters
 	 */
-	countActs(params: ActCountOptions): number {
+	async countActs(params: ActCountOptions): Promise<number> {
 		try {
-			let acts = Array.from(this.actStore.values());
-
-			if (params.territory) {
-				acts = acts.filter(act => act.territory === params.territory);
-			}
-
-			if (params.type) {
-				acts = acts.filter(act => act.actType === params.type);
-			}
-
-			if (params.status) {
-				acts = acts.filter(act => act.status === params.status);
-			}
-
-			return acts.length;
+			return await this.archive.count({
+				territory: params.territory,
+				actType: params.type,
+				status: params.status
+			});
 		} catch (error) {
 			Log.error(actLogger, 'Failed to count acts:', error);
 			return 0;
@@ -259,19 +262,24 @@ export class ActService implements ActServiceInterface {
 	/**
 	 * Get a specific act by ID
 	 */
-	getAct(actId: string): CarnivalRecord | null {
-		return this.actStore.get(actId) ?? null;
+	async getAct(actId: string): Promise<CarnivalRecord | null> {
+		try {
+			return await this.archive.findById(actId);
+		} catch (error) {
+			Log.error(actLogger, `Failed to get act ${actId}:`, error);
+			return null;
+		}
 	}
 
 	/**
 	 * List acts with optional filtering
 	 */
-	listActs(filter?: {
+	async listActs(filter?: {
 		territory?: string;
 		type?: string;
 		status?: 'active' | 'archived' | 'cancelled';
 		limit?: number;
-	}): CarnivalRecord[] {
+	}): Promise<CarnivalRecord[]> {
 		const options: ActQueryOptions = {
 			territory: filter?.territory,
 			type: filter?.type,
@@ -279,31 +287,44 @@ export class ActService implements ActServiceInterface {
 			offset: 0
 		};
 
-		return this.queryActs(options);
+		return await this.queryActs(options);
 	}
 
 	/**
 	 * Perform search across acts
 	 */
-	performSearch(params: SearchOptions): SearchResult[] {
+	async performSearch(params: SearchOptions): Promise<SearchResult[]> {
 		try {
 			const results: SearchResult[] = [];
 			const query = params.query.toLowerCase();
 			
-			let acts = Array.from(this.actStore.values());
+			// Get all acts matching territories/types
+			const acts = await this.archive.find({
+				territory: params.territories?.[0], // Archive filters one territory at a time
+				actType: params.filters?.actTypes?.[0],
+				limit: undefined // Get all for search
+			});
 
 			// Filter by territories if specified
-			if (params.territories && params.territories.length > 0) {
-				acts = acts.filter(act => params.territories.includes(act.territory));
-			}
+			// Further filter by territories if multiple specified
+			const filteredActs = acts.filter(act => {
+				if (params.territories && params.territories.length > 0) {
+					if (!params.territories.includes(act.territory)) {
+						return false;
+					}
+				}
 
-			// Filter by types if specified in filters
-			if (params.filters?.actTypes && params.filters.actTypes.length > 0) {
-				acts = acts.filter(act => params.filters?.actTypes?.includes(act.actType));
-			}
+				if (params.filters?.actTypes && params.filters.actTypes.length > 0) {
+					if (!params.filters.actTypes.includes(act.actType)) {
+						return false;
+					}
+				}
+				
+				return true;
+			});
 
 			// Search in title and content
-			for (const act of acts) {
+			for (const act of filteredActs) {
 				const searchableText = `
 					${act.title}
 					${act.content}
@@ -361,54 +382,19 @@ export class ActService implements ActServiceInterface {
 	/**
 	 * Query acts based on parameters
 	 */
-	queryActs(options: ExtendedActQueryOptions): CarnivalRecord[] {
+	async queryActs(options: ExtendedActQueryOptions): Promise<CarnivalRecord[]> {
 		try {
-			let acts = Array.from(this.actStore.values());
-
-			// Apply filters
-			if (options.territory) {
-				acts = acts.filter(act => act.territory === options.territory);
-			}
-
-			if (options.type) {
-				acts = acts.filter(act => act.actType === options.type);
-			}
-			
-			if (options.performerId) {
-				acts = acts.filter(act => 
-					act.metadata.performerId === options.performerId
-				);
-			}
-
-			if (options.status) {
-				acts = acts.filter(act => act.status === options.status);
-			}
-
-			if (options.dateRange) {
-				const start = new Date(options.dateRange.start).getTime();
-				const end = new Date(options.dateRange.end).getTime();
-				acts = acts.filter(act => {
-					const created = new Date(act.createdAt).getTime();
-					return created >= start && created <= end;
-				});
-			}
-
-			// Apply sorting
-			if (options.sortBy) {
-				acts = this.sortActs(acts, options.sortBy, options.sortOrder ?? 'desc');
-			} else {
-				// Default: sort by creation date (newest first)
-				acts.sort((a, b) => 
-					new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-				);
-			}
-
-			// Apply pagination
-			const offset = options.offset ?? 0;
-			const limit = options.limit ?? 10;
-			
-			return acts.slice(offset, offset + limit);
-			
+			return await this.archive.find({
+				territory: options.territory,
+				actType: options.type,
+				performerId: options.performerId,
+				status: options.status,
+				dateRange: options.dateRange,
+				sortBy: options.sortBy,
+				sortOrder: options.sortOrder,
+				limit: options.limit ?? 10,
+				offset: options.offset ?? 0
+			});
 		} catch (error) {
 			Log.error(actLogger, 'Failed to query acts:', error);
 			return [];
@@ -418,7 +404,7 @@ export class ActService implements ActServiceInterface {
 	/**
 	 * Query acts with pagination support
 	 */
-	queryActsPaginated(options: ExtendedActQueryOptions): PaginatedActResult {
+	async queryActsPaginated(options: ExtendedActQueryOptions): Promise<PaginatedActResult> {
 		const page = options.page ?? 1;
 		const pageSize = options.pageSize ?? 10;
 
@@ -429,8 +415,8 @@ export class ActService implements ActServiceInterface {
 			limit: pageSize
 		};
 
-		const acts = this.queryActs(paginatedOptions);
-		const totalItems = this.countActs({
+		const acts = await this.queryActs(paginatedOptions);
+		const totalItems = await this.countActs({
 			territory: options.territory,
 			type: options.type,
 			status: options.status
@@ -458,112 +444,63 @@ export class ActService implements ActServiceInterface {
 	 */
 
 	/**
-	 * Store an act in memory with indexing
-	 */
-	private storeAct(act: CarnivalRecord): void {
-		// Store in main map
-		this.actStore.set(act.id, act);
-
-		// Index by territory
-		if (!this.actsByTerritory.has(act.territory)) {
-			this.actsByTerritory.set(act.territory, new Set());
-		}
-		this.actsByTerritory.get(act.territory)?.add(act.id);
-
-		// Index by type
-		if (!this.actsByType.has(act.actType)) {
-			this.actsByType.set(act.actType, new Set());
-		}
-		this.actsByType.get(act.actType)?.add(act.id);
-
-		// Index by performer if available
-		if (act.metadata.performerId) {
-			const performerId = act.metadata.performerId as string;
-			if (!this.actsByPerformer.has(performerId)) {
-				this.actsByPerformer.set(performerId, new Set());
-			}
-			this.actsByPerformer.get(performerId)?.add(act.id);
-		}
-	}
-
-	/**
-	 * Sort acts by specified field and order
-	 */
-	private sortActs(
-		acts: CarnivalRecord[], 
-		sortBy: 'createdAt' | 'updatedAt' | 'title' | 'territory',
-		order: 'asc' | 'desc' = 'desc'
-	): CarnivalRecord[] {
-		return acts.sort((a, b) => {
-			let comparison = 0;
-
-			switch (sortBy) {
-				case 'createdAt':
-					comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-					break;
-				case 'updatedAt':
-					const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : new Date(a.createdAt).getTime();
-					const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : new Date(b.createdAt).getTime();
-					comparison = aTime - bTime;
-					break;
-				case 'title':
-					comparison = a.title.localeCompare(b.title);
-					break;
-				case 'territory':
-					comparison = a.territory.localeCompare(b.territory);
-					break;
-			}
-
-			return order === 'asc' ? comparison : -comparison;
-		});
-	}
-
-	/**
 	 * Seed mock data for testing
 	 */
-	private seedMockData(): void {
-		// Create a few mock acts for testing
-		const mockActs: CarnivalRecord[] = [
-			{
-				id: 'act-mock-1',
-				title: 'Initial Territory Setup',
-				territory: 'backstage',
-				actType: 'changelog',
-				content: 'Set up initial territory configuration and performer registration',
-				metadata: {
-					performerId: 'performer-1',
-					createdBy: 'system'
-				},
-				createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-				status: 'active',
-				syncPreferences: {
-					requireAck: true,
-					broadcastToAll: false,
-					targetTerritories: ['backstage']
-				}
-			},
-			{
-				id: 'act-mock-2',
-				title: 'Network Discovery Completed',
-				territory: 'backstage',
-				actType: 'conversation',
-				content: 'Successfully discovered 5 performers across 3 territories',
-				metadata: {
-					performerId: 'performer-1',
-					createdBy: 'network-service'
-				},
-				createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-				status: 'active',
-				syncPreferences: {
-					requireAck: false,
-					broadcastToAll: true,
-					targetTerritories: []
-				}
+	private async seedMockData(): Promise<void> {
+		try {
+			// Check if already seeded
+			const existing = await this.archive.count({});
+			if (existing > 0) {
+				Log.log(actLogger, `🎭 Archive already contains ${existing} acts, skipping seed`);
+				return;
 			}
-		];
 
-		mockActs.forEach(act => this.storeAct(act));
-		Log.log(actLogger, `🎭 Seeded ${mockActs.length} mock acts for testing`);
+			// Create a few mock acts for testing
+			const mockActs: CarnivalRecord[] = [
+				{
+					id: 'act-mock-1',
+					title: 'Initial Territory Setup',
+					territory: 'backstage',
+					actType: 'changelog',
+					content: 'Set up initial territory configuration and performer registration',
+					metadata: {
+						performerId: 'performer-1',
+						createdBy: 'system'
+					},
+					createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+					status: 'active',
+					syncPreferences: {
+						requireAck: true,
+						broadcastToAll: false,
+						targetTerritories: ['backstage']
+					}
+				},
+				{
+					id: 'act-mock-2',
+					title: 'Network Discovery Completed',
+					territory: 'backstage',
+					actType: 'conversation',
+					content: 'Successfully discovered 5 performers across 3 territories',
+					metadata: {
+						performerId: 'performer-1',
+						createdBy: 'network-service'
+					},
+					createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+					status: 'active',
+					syncPreferences: {
+						requireAck: false,
+						broadcastToAll: true,
+						targetTerritories: []
+					}
+				}
+			];
+
+			// Bulk create via archive
+			const result = await this.archive.bulkCreate(mockActs);
+			Log.log(actLogger, `🎭 Seeded ${result.successful.length} mock acts for testing`);
+		} catch (error) {
+			Log.error(actLogger, 'Failed to seed mock data:', error);
+		}
 	}
 
 	private async makeNetworkRequest(
@@ -615,8 +552,8 @@ export class ActService implements ActServiceInterface {
 		}
 	}
 
-	cleanup(): void {
-		// Could save acts to persistent storage here
+	async cleanup(): Promise<void> {
+		await this.archive.cleanup();
 		Log.log(actLogger, '🎭 Act service cleanup complete');
 	}
 }

@@ -41,16 +41,16 @@ This changelog serves as a comprehensive reference for AI agents and developers 
 ## Current State Summary
 
 ### Plugin Status
-- **Phase**: 3.1/5 Complete (Observability Framework Operational)
+- **Phase**: 3.2/5 Complete (Archive Abstraction + Minimal Observability Complete)
 - **Build Status**: Ready for compilation
-- **Test Status**: Manual testing required
+- **Test Status**: Manual testing required for observability
 - **Production Status**: Development/Active Implementation
 
 ### Major Systems
 - ✅ **Network Infrastructure**: Circuit breaker, HTTP client, registry service
 - ✅ **Persistence Layer**: LRU cache with vault-based persistence
 - ✅ **Type System**: Carnival-themed type hierarchy established
-- ✅ **Archive Abstraction**: ArchiveInterface with InMemoryArchive and MockArchive implementations
+- ✅ **Archive Abstraction**: ArchiveInterface with InMemoryArchive, CacheArchive, and MockArchive implementations
 - ✅ **Minimal Observability**: In-memory metrics + webhook provider + Prometheus endpoint
 - ✅ **Analytics Types**: Comprehensive analytics type system
 - ⏳ **Public API**: Abstraction layer in progress
@@ -293,6 +293,135 @@ src/types/internal/
 3. Add documentation for metrics endpoint and webhook configuration
 4. Consider additional metric types (histogram support for latency tracking)
 5. Integration tests for metrics recording and webhook delivery
+
+---
+
+## Recent Session Work (2025-11-15) - Phase 3.2 Completion (CacheArchive)
+
+### Session Focus: Complete Archive Abstraction with CacheArchive Implementation
+**Duration**: CacheArchive implementation + observability testing documentation  
+**Status**: ✅ Complete, Ready for Testing
+
+#### Key Accomplishments
+
+**1. CacheArchive Implementation** (NEW - Phase 3.2)
+- ✅ Created fallback storage layer backed by PersistentPerformerCache:
+  - **File**: `src/archive/cache-archive.ts` (475 lines)
+  - **Purpose**: Provides graceful degradation when primary archive unavailable
+  - **Design**: Wraps existing Performer cache with ArchiveInterface contract
+  - **Data mapping**: Converts between Performer and CarnivalRecord formats
+  - **TTL support**: Inherits cache expiration from PersistentPerformerCache
+  - **Capacity**: Respects cache size limits (default 1000 entries)
+- ✅ Implements full ArchiveInterface:
+  - CRUD: create, findById, find, findOne, update, delete
+  - Query: count, exists, all (with filtering/pagination/sorting)
+  - Batch: bulkCreate, bulkUpdate, bulkDelete with result tracking
+  - Maintenance: stats(), clear(), cleanup()
+  - Indexes: No-op (cache doesn't support explicit indexing)
+- ✅ Performer-to-CarnivalRecord conversion:
+  - Transparent mapping: id→id, name→title, metadata→custom storage
+  - Status normalization: active/inactive → CarnivalRecord status
+  - Metadata preservation: Original CarnivalRecord data in performer.metadata.custom
+  - Reverse lookup: Can reconstruct CarnivalRecord from cached Performer
+
+**2. Archive Module Organization** (NEW)
+- ✅ Created `src/archive/index.ts`:
+  - Exports: InMemoryArchive, CacheArchive
+  - Type re-export: PersistentPerformerCache
+  - Module-level documentation
+
+**3. Observability Testing Documentation** (NEW - Comprehensive)
+- ✅ Created `.github/docs/observability-testing-guide.md` (310 lines):
+  - **Part 1: Metrics Endpoint Testing**
+    - Endpoint registration verification
+    - Prometheus scraper compatibility
+    - Real-time metrics recording during activity
+  - **Part 2: Webhook Provider Testing**
+    - Test receiver setup (Node.js/Express with HMAC)
+    - Provider configuration in plugin settings
+    - Event triggering and validation
+    - HMAC-SHA256 signature verification
+    - Invalid signature rejection
+  - **Part 3: Configuration Testing**
+    - Settings persistence across restarts
+    - Validation error handling
+    - Enable/disable lifecycle
+  - **Part 4: Performance & Reliability**
+    - Metrics under load
+    - Webhook retry logic during outages
+    - Endpoint response time verification
+  - **Part 5: Integration**
+    - External consumer integration examples
+    - Prometheus scraper Python example
+  - **Troubleshooting guide** with common issues and solutions
+  - **Summary checklist** for complete validation
+
+#### Files Created/Modified
+```
+src/archive/
+├── cache-archive.ts                 # NEW (475 lines) - CacheArchive implementation
+└── index.ts                         # NEW (14 lines) - Module exports
+
+.github/docs/
+└── observability-testing-guide.md   # NEW (310 lines) - Complete testing guide
+```
+
+#### Architecture Enhancements
+
+**Archive Layer Three-Tier Design**:
+```
+ActService
+    ↓
+ArchiveInterface (abstract contract)
+    ├── InMemoryArchive (primary - fast, no persistence)
+    ├── CacheArchive (fallback - TTL-based, graceful degradation)
+    └── RxDBArchive (Phase 4 - persistent, queryable)
+```
+
+**CacheArchive Use Cases**:
+1. **Primary failure**: When RxDB unavailable, fall back to cache
+2. **Session data**: Store acts/metrics for current session
+3. **Performance**: Use when latency critical (in-memory access)
+4. **Reduced features**: Limited querying (no complex filters)
+
+**Cache Record Structure**:
+```typescript
+interface CacheRecord {
+  performer: Performer;              // Underlying performer entry
+  asRecord: CarnivalRecord;          // Converted carnival record
+  createdAt: Date;                   // Storage timestamp
+}
+```
+
+**Testing Documentation Structure**:
+- Prerequisites and setup instructions
+- 5 comprehensive test parts (metrics, webhook, config, perf, integration)
+- Real-world code examples (Node.js, Python, curl)
+- Troubleshooting matrix (Issue → Diagnosis → Solution)
+- Checklist for validation completeness
+
+#### Status Summary
+- ✅ CacheArchive fully implements ArchiveInterface
+- ✅ Bidirectional Performer ↔ CarnivalRecord mapping
+- ✅ Graceful degradation pattern established
+- ✅ Archive module properly organized with exports
+- ✅ Comprehensive observability testing guide created
+- ⏳ Manual testing needed to validate metrics and webhook delivery
+- ⏳ Update NETWORK-ROADMAP with Phase 3.2 completion details
+
+#### Known Limitations (by Design)
+- **Cache size limit**: Inherits from PersistentPerformerCache (default 1000)
+- **TTL expiration**: Records automatically expire per cache TTL
+- **No transactions**: Cache doesn't support atomic multi-op transactions
+- **Limited querying**: Filtering done in-memory (no index optimization)
+- **No persistence**: Data lost if cache is cleared or plugin reloaded
+
+#### Next Steps
+1. Manual observability testing using provided guide
+2. Validate metrics endpoint and webhook delivery
+3. Update NETWORK-ROADMAP to mark Phase 3.2 complete
+4. Update CHANGELOG with final status
+5. Plan Phase 3.3 (External API) or Phase 4 (RxDB) initiation
 
 ---
 

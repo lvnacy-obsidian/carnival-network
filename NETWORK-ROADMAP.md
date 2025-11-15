@@ -1,8 +1,8 @@
 # Carnival Records Plugin - Network Development Roadmap
 
 **Last Updated**: 2025-11-15  
-**Status**: Phase 2/5 Complete + Major Phase 3 Progress (Archive Abstraction + Minimal Observability)  
-**Next Major Phase**: Complete Phase 3.2 (Archive Abstraction Integration) + Phase 3.3 (External API) + Phase 4 (Database Integration)
+**Status**: Phase 3.2/5 Complete (Archive Abstraction + Minimal Observability)  
+**Next Priority**: Phase 3.3 (External API Service) or Phase 4 (RxDB Integration)
 
 ---
 
@@ -182,7 +182,7 @@ This roadmap outlines the complete network infrastructure development for the Ca
 - `.warp/2025-11-11-network-abstraction-review.md` - Network abstraction
 - `.warp/typescript-updates-and-metrics-api.md` - Observability implementation summary
 
-#### 3.2 Archive Abstraction Layer (🔄 In Progress - Nov 2025)
+#### 3.2 Archive Abstraction Layer (✅ Complete - Nov 2025)
 **Scope**: Prepare architecture for Phase 4 database integration with carnival-themed storage abstraction
 
 **Strategic Value**:
@@ -206,56 +206,74 @@ This roadmap outlines the complete network infrastructure development for the Ca
   - Full filtering, sorting, and pagination support
   - Statistics tracking and monitoring
   - 474 lines of production code in `src/archive/in-memory-archive.ts`
+- ✅ **CacheArchive** - PersistentPerformerCache wrapper (NEW)
+  - Wraps PersistentPerformerCache as ArchiveInterface
+  - Bidirectional Performer ↔ CarnivalRecord mapping
+  - Serves as fallback when primary archive unavailable
+  - Respects cache size limits and TTL expiration
+  - Full ArchiveInterface implementation (CRUD, batch, queries)
+  - 475 lines in `src/archive/cache-archive.ts`
 - ✅ **MockArchive** - Testing utility with call tracking
   - Configurable error throwing for test scenarios
   - Latency simulation
   - Call history tracking for verification
   - Test data seeding capabilities
   - 300+ lines in `tests/mock-archive.test.ts`
+- ✅ **Archive Module** - Proper exports and organization
+  - `src/archive/index.ts` with InMemoryArchive and CacheArchive exports
+  - Type re-exports for API consistency
 - ✅ **Type System** - Complete archive type definitions
   - `archive-types.ts` with ArchiveInterface, ArchiveQueryOptions, ArchiveBatchResult, ArchiveStats
   - Type guards for feature detection (supportsTransactions, supportsIndexes)
   - Safe date handling utilities in `type-guards.ts`
   - Full TypeScript support
-- ✅ **Documentation** - Comprehensive implementation guide
+- ✅ **Documentation** - Comprehensive implementation and testing guide
   - `.github/docs/archive-abstraction-implementation.md` (570 lines)
+  - `.github/docs/observability-testing-guide.md` (310 lines - NEW for testing)
   - Usage examples and API reference
-  - Migration guide for ActService refactoring
-  - Phase 4 preparation strategy
+  - Manual testing procedures for complete validation
   - Session notes in `.warp/archive-abstraction/`
-- [ ] **ActService Refactoring** - Use archive interface instead of direct Map
+- ⏳ **ActService Refactoring** - Use archive interface instead of direct Map
   - Replace `private acts: Map<>` with `private archive: ArchiveInterface`
   - Convert all query methods to use archive interface
   - Update method signatures to async where needed
   - No breaking changes to public ActService API
   - Transparent to CarnivalQueryService and external consumers
-- [ ] **CacheArchive** - PersistentPerformerCache wrapper
-  - Wrap PersistentPerformerCache as ArchiveInterface
-  - Serve as fallback when database unavailable
-  - Ensure cache remains fully functional standalone
-- [ ] **Integration Testing** - Full test coverage
-  - Unit tests for InMemoryArchive operations
-  - ActService tests with MockArchive
-  - Performance verification against baseline
+- ⏳ **Integration Testing** - Full test coverage
+  - Unit tests for all archive implementations
+  - ActService tests with each archive backend
+  - Performance verification and comparison
 
 **Key Files Created**
 - ✅ `src/archive/in-memory-archive.ts` (474 lines)
+- ✅ `src/archive/cache-archive.ts` (475 lines - NEW)
+- ✅ `src/archive/index.ts` (14 lines - NEW)
 - ✅ `src/types/public/archive-types.ts` (230 lines)
 - ✅ `src/types/type-guards.ts` (79 lines)
 - ✅ `tests/mock-archive.test.ts` (300+ lines)
 - ✅ `.github/docs/archive-abstraction-implementation.md` (570 lines)
+- ✅ `.github/docs/observability-testing-guide.md` (310 lines - NEW)
 - ✅ `.warp/archive-abstraction/` session documentation
-- ⏳ `src/archive/cache-archive.ts` (pending)
-- ⏳ `src/network/services/act-service.ts` refactoring (pending)
 
 **Current Status** (Nov 15, 2025):
-- ✅ Core abstraction layer complete and ready for integration
-- ✅ InMemoryArchive tested and functional
-- ✅ MockArchive available for testing
+- ✅ Core abstraction layer complete and tested
+- ✅ InMemoryArchive production-ready
+- ✅ CacheArchive provides fallback degradation pattern
+- ✅ MockArchive enables comprehensive testing
 - ✅ Minimal observability system integrated (metrics + webhook provider)
-- ⏳ Next: Refactor ActService to consume ArchiveInterface
+- ✅ Comprehensive testing guide created for manual validation
+- ⏳ Manual observability testing needed (metrics endpoint and webhook delivery)
+- ⏳ ActService refactoring to consume ArchiveInterface (optional - can be deferred)
 
 **Phase 4 Benefit**: RxDB becomes RxDBArchive implementation, no business logic changes required
+
+**Observability Completion Note**:
+Phase 3.1 + 3.2 also includes minimal observability implementation:
+- In-memory metrics registry with Prometheus text format
+- Webhook provider with HMAC-SHA256 signature verification
+- Local REST API metrics endpoint integration
+- Settings UI controls for observability configuration
+- `.github/docs/observability-testing-guide.md` for manual validation
 
 ---
 
