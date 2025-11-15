@@ -38,6 +38,16 @@ export * from './api-request-types';
 export * from './app-plugin-filler';
 
 /**
+ * Archive exports
+ * - ArchiveBatchResult
+ * - ArchiveQueryOptions
+ * - ArchiveStats
+ * - ArchiveTransaction
+ * - ArchiveInterface
+ */
+export * from './archive-types';
+
+/**
  * Carnival Client exports
  * - CarnivalNetworkClientInterface
  * - ExternalClient

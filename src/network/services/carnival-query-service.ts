@@ -3,7 +3,7 @@ import { TerritoryAccessService } from './territory-access-service';
 import { ObservabilityProviderFactory } from './observability';
 import { MetricBufferManager } from './observability/metric-buffer-manager';
 import { NotFoundError } from '../../errors';
-import { safeGetDateFromMetadata } from 'src/utils/date-utils';
+import { safeGetDateFromMetadata } from '../../types/type-guards';
 import type {
 	ActivityAnalytics,
 	AnalyticsData,
