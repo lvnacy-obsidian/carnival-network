@@ -92,7 +92,7 @@ export abstract class BaseObservabilityProvider implements ObservabilityProvider
 			// Try to send via circuit breaker
 			await this.circuitBreaker.execute(
 				async () => {
-					await this.retryOperation(sendFn, metrics);
+					await this.retryOperation(sendFn);
 				},
 				// Classify errors - only trip circuit on actual provider failures
 				(error) => {
@@ -292,7 +292,7 @@ export abstract class BaseObservabilityProvider implements ObservabilityProvider
 		this.metricsInDeadLetter += metrics.length;
 
 		// Limit queue size to prevent memory issues
-		const maxQueueSize = this.config?.maxBufferSize || 10000;
+		const maxQueueSize = this.config?.maxBufferSize ?? 10000;
 		if (this.deadLetterQueue.length > maxQueueSize / 100) {
 			// Remove oldest entries
 			const removed = this.deadLetterQueue.shift();
@@ -310,8 +310,7 @@ export abstract class BaseObservabilityProvider implements ObservabilityProvider
 	 * Retry operation with exponential backoff
 	 */
 	private async retryOperation(
-		operation: () => Promise<void>,
-		metrics: MetricDataPoint[]
+		operation: () => Promise<void>
 	): Promise<void> {
 		let lastError: Error | undefined;
 
@@ -344,7 +343,7 @@ export abstract class BaseObservabilityProvider implements ObservabilityProvider
 		}
 
 		// All retries exhausted
-		throw lastError || new Error('Unknown error during retry');
+		throw lastError ?? new Error('Unknown error during retry');
 	}
 
 	/**

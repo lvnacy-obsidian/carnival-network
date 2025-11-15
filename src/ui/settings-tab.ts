@@ -10,7 +10,36 @@ import {
 } from 'obsidian';
 import CarnivalNetworkPlugin from '../main';
 import { getPlugin } from '../utils/plugin-utils';
-import { CarnivalConfig } from '../types/public';
+import { CarnivalConfig, ObservabilityConfig, MetricDataPoint } from '../types/public';
+
+// Runtime types used only within the settings UI to avoid `any` casts
+type RuntimeCarnival = {
+	getRegistryService?: () => {
+		getRegistryHealth?: () => Record<string, string | number>;
+		getRegistryMetrics?: () => Record<string, unknown>;
+		getCertificateHealth?: () => { total?: number; healthy?: number; expiringSoon?: number; expired?: number; revoked?: number };
+		getNetworkTopology?: () => Promise<unknown>;
+		updateRegistryEndpoints?: (e: string[]) => void;
+	};
+	getNetworkStatus?: () => Promise<unknown>;
+	getNetworkMetrics?: () => Promise<unknown>;
+	refreshNetwork?: () => Promise<void>;
+	disconnectNetwork?: () => Promise<void>;
+};
+
+// NOTE: use existing public types where possible; registry metrics below are
+// converted into `MetricDataPoint` instances for UI rendering.
+
+type UISettings = CarnivalConfig & {
+	autoDiscovery?: boolean;
+	networkEnabled?: boolean;
+	syncChangelogs?: boolean;
+	syncConversations?: boolean;
+	broadcastByDefault?: boolean;
+	externalApiKeys?: Record<string, { enabled: boolean; permissions: string[]; sessionDuration: number; allowedTypes: string[]; description?: string }>;
+	carnivalNetworkSettings?: { network?: { communicationTimeout?: number; maxConnections?: number; registryEndpoints?: readonly string[] } };
+};
+import { setRegistryEndpoints } from '../network/carnival-network';
 
 export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 	plugin: CarnivalNetworkPlugin;
@@ -30,6 +59,9 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
+
+		const pluginSettings = this.plugin.settings as UISettings;
+		const typedPlugin = this.plugin as unknown as { applyObservabilityConfig?: () => Promise<void>; carnivalNetwork?: RuntimeCarnival };
 
 		containerEl.createEl('h2', { text: '🎪 Carnival Records Settings' });
 		containerEl.createEl('p', { 
@@ -62,17 +94,18 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 			.setDesc('Connect to other carnival territories across your ecosystem')
 			.addToggle((toggle: ToggleComponent) => {
 				toggle
-					.setValue(this.plugin.settings.networkEnabled)
+					.setValue(pluginSettings.networkEnabled)
 					.onChange(async (value) => {
-						this.plugin.settings.networkEnabled = value;
+						pluginSettings.networkEnabled = value;
 						await this.plugin.saveSettings();
-						
-						// Reinitialize network if enabled
-						if (value && !this.plugin.carnivalNetwork) {
-							await initializeCarnivalNetwork(this.app, this.settings);
-						} else if (!value && this.plugin.carnivalNetwork) {
-							await this.plugin.carnivalNetwork.disconnectNetwork();
-							// this.plugin.carnivalNetwork = null;
+
+						// Reinitialize network if enabled (deferred)
+						const runtimeCarnival = (this.plugin as unknown as { carnivalNetwork?: RuntimeCarnival }).carnivalNetwork;
+						if (value && !runtimeCarnival) {
+							// Network will initialize when a performer joins or on plugin reload.
+							new Notice('Network will initialize when a performer joins or on plugin reload.');
+						} else if (!value && runtimeCarnival) {
+							await runtimeCarnival.disconnectNetwork?.();
 						}
 					});
 			});
@@ -82,9 +115,9 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 			.setDesc('Automatically discover other carnival territories')
 			.addToggle((toggle: ToggleComponent) => {
 				toggle
-					.setValue(this.plugin.settings.autoDiscovery)
+					.setValue(pluginSettings.autoDiscovery ?? false)
 					.onChange(async (value) => {
-						this.plugin.settings.autoDiscovery = value;
+						pluginSettings.autoDiscovery = value as boolean;
 						await this.plugin.saveSettings();
 					});
 			});
@@ -94,9 +127,9 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 			.setDesc('Share changelog records across connected territories')
 			.addToggle((toggle: ToggleComponent) => {
 				toggle
-					.setValue(this.plugin.settings.syncChangelogs)
+					.setValue(pluginSettings.syncChangelogs ?? false)
 					.onChange(async (value) => {
-						this.plugin.settings.syncChangelogs = value;
+						pluginSettings.syncChangelogs = value as boolean;
 						await this.plugin.saveSettings();
 					});
 			});
@@ -106,9 +139,9 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 			.setDesc('Share conversation records across connected territories')
 			.addToggle((toggle: ToggleComponent) => {
 				toggle
-					.setValue(this.plugin.settings.syncConversations)
+					.setValue(pluginSettings.syncConversations ?? false)
 					.onChange(async (value) => {
-						this.plugin.settings.syncConversations = value;
+						pluginSettings.syncConversations = value as boolean;
 						await this.plugin.saveSettings();
 					});
 			});
@@ -118,9 +151,9 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 			.setDesc('Automatically broadcast new records to all connected territories')
 			.addToggle((toggle: ToggleComponent) => {
 				toggle
-					.setValue(this.plugin.settings.broadcastByDefault)
+					.setValue(pluginSettings.broadcastByDefault ?? false)
 					.onChange(async (value) => {
-						this.plugin.settings.broadcastByDefault = value;
+						pluginSettings.broadcastByDefault = value as boolean;
 						await this.plugin.saveSettings();
 					});
 			});
@@ -145,7 +178,8 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 						this.plugin.carnivalNetworkSettings.network.communicationTimeout = value;
 						await this.plugin.saveSettings();
 						// Update network configuration if active
-						if (this.plugin.carnivalNetwork?.getRegistryService()) {
+						const runtimeCarnival = (this.plugin as any).carnivalNetwork;
+						if (runtimeCarnival?.getRegistryService?.()) {
 							// Registry service will pick up new config on next request
 						}
 					});
@@ -183,9 +217,13 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 		
 		const renderEndpoints = () => {
 			endpointsContainer.empty();
-			const endpoints = this.plugin.carnivalNetworkSettings.network.registryEndpoints;
-			
-			endpoints.forEach((endpoint: string, index: string) => {
+
+			// Work from an immutable copy so UI doesn't mutate the saved settings directly.
+			const endpoints = Array.isArray(this.plugin.carnivalNetworkSettings.network.registryEndpoints)
+				? [...this.plugin.carnivalNetworkSettings.network.registryEndpoints]
+				: [];
+
+			endpoints.forEach((endpoint: string, index: number) => {
 				const endpointDiv = endpointsContainer.createDiv('endpoint-item');
 				new Setting(endpointDiv)
 					.setName(`Registry ${index + 1}`)
@@ -194,37 +232,30 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 						text.setPlaceholder('https://registry.example.com:27123')
 							.setValue(endpoint)
 							.onChange(async (value) => {
-								this.plugin.carnivalNetworkSettings.network.registryEndpoints[index] = value;
-								await this.plugin.saveSettings();
-								// Update registry endpoints if network is active
-								if (this.plugin.carnivalNetwork?.getRegistryService()) {
-									this.plugin.carnivalNetwork.getRegistryService().updateRegistryEndpoints(
-										this.plugin.carnivalNetworkSettings.network.registryEndpoints
-									);
-								}
+								const newEndpoints = [...endpoints];
+								newEndpoints[index] = value;
+
+								// Use centralized handler
+								await setRegistryEndpoints.call(this.plugin, newEndpoints);
 							});
 					})
 					.addButton((button: ButtonComponent) => {
 						button.setButtonText('Remove')
 							.setWarning()
 							.onClick(async () => {
-								this.plugin.carnivalNetworkSettings.network.registryEndpoints.splice(index, 1);
-								await this.plugin.saveSettings();
+								const newEndpoints = endpoints.filter((_, i) => i !== index);
+
+								await setRegistryEndpoints.call(this.plugin, newEndpoints);
 								renderEndpoints();
-								// Update registry endpoints if network is active
-								if (this.plugin.carnivalNetwork?.getRegistryService()) {
-									this.plugin.carnivalNetwork.getRegistryService().updateRegistryEndpoints(
-										this.plugin.carnivalNetworkSettings.network.registryEndpoints
-									);
-								}
 							});
 					});
 			});
-			
+
 			const addEndpointBtn = endpointsContainer.createEl('button', { text: 'Add Registry Endpoint' });
 			addEndpointBtn.addEventListener('click', async () => {
-				this.plugin.carnivalNetworkSettings.network.registryEndpoints.push('https://');
-				await this.plugin.saveSettings();
+				const newEndpoints = [...endpoints, 'https://'];
+
+				await setRegistryEndpoints.call(this.plugin, newEndpoints);
 				renderEndpoints();
 			});
 		};
@@ -295,8 +326,101 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 		
 		renderEndpoints();
 
+		// Observability Settings (metrics + webhook)
+		containerEl.createEl('h3', { text: '📡 Observability & Metrics' });
+		containerEl.createEl('p', {
+			text: 'Enable exporting metrics and (optionally) push them to a webhook. Metrics endpoint is exposed via the Local REST API plugin when enabled.',
+			cls: 'setting-item-description'
+		});
+
+		const obs: ObservabilityConfig = (pluginSettings.observability ?? {}) as ObservabilityConfig;
+
+		new Setting(containerEl)
+			.setName('Enable Observability')
+			.setDesc('Enable exporting internal metrics and sending them to an external provider')
+			.addToggle((toggle: ToggleComponent) => {
+				toggle
+					.setValue(Boolean(obs.enabled))
+					.onChange(async (value) => {
+						pluginSettings.observability = {
+							...(pluginSettings.observability ?? {}),
+							enabled: value
+						} as ObservabilityConfig;
+
+						await this.plugin.saveSettings();
+						await typedPlugin.applyObservabilityConfig?.();
+						this.display();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Observability Provider')
+			.setDesc('Choose how metrics are exported')
+			.addDropdown((dropdown) => {
+				dropdown.addOption('none', 'None');
+				dropdown.addOption('webhook', 'Webhook (push)');
+				dropdown.setValue((obs.provider ?? 'none') as string).onChange(async (value) => {
+					pluginSettings.observability = {
+						...(pluginSettings.observability ?? {}),
+						provider: value === 'none' ? undefined : (value as ObservabilityConfig['provider'])
+					} as ObservabilityConfig;
+
+					await this.plugin.saveSettings();
+					await typedPlugin.applyObservabilityConfig?.();
+					this.display();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName('Webhook Endpoint')
+			.setDesc('URL to POST metrics to when provider is set to Webhook')
+			.addText((cb: TextComponent) => {
+				cb.setValue(obs.endpoint ?? '')
+					.onChange(async (value) => {
+						pluginSettings.observability = {
+							...(pluginSettings.observability ?? {}),
+							endpoint: value
+						} as ObservabilityConfig;
+						await this.plugin.saveSettings();
+						await typedPlugin.applyObservabilityConfig?.();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Webhook Secret (optional)')
+			.setDesc('Secret used to HMAC-sign webhook payloads (or leave blank to use API key)')
+			.addText((cb: TextComponent) => {
+				cb.setValue(obs.webhookSecret ?? '')
+					.onChange(async (value) => {
+						pluginSettings.observability = {
+							...(pluginSettings.observability ?? {}),
+							webhookSecret: value
+						} as ObservabilityConfig;
+						await this.plugin.saveSettings();
+						await typedPlugin.applyObservabilityConfig?.();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Expose Metrics Endpoint')
+			.setDesc('Expose a Prometheus-style metrics endpoint via Local REST API')
+			.addToggle((toggle: ToggleComponent) => {
+				toggle.setValue(Boolean(obs.metricsEnabled))
+					.onChange(async (value) => {
+						pluginSettings.observability = {
+							...(pluginSettings.observability ?? {}),
+							metricsEnabled: value
+						} as ObservabilityConfig;
+
+						await this.plugin.saveSettings();
+						await typedPlugin.applyObservabilityConfig?.();
+						this.display();
+					});
+			});
+
 		// Comprehensive Network Health & Monitoring Section
-		if (this.plugin.carnivalNetwork) {
+		const runtimeCarnival = typedPlugin.carnivalNetwork;
+		if (runtimeCarnival) {
 			containerEl.createEl('h3', { text: '📊 Network Health & Monitoring' });
 			
 			// Network Status Overview
@@ -339,21 +463,27 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 				cacheContainer.empty();
 				
 				try {
-					const registryService = this.plugin.carnivalNetwork.getRegistryService();
+					const registryService = runtimeCarnival.getRegistryService?.();
+					if (!registryService) {
+						healthContainer.createEl('p', { text: 'Registry service unavailable', cls: 'setting-item-description' });
+						return;
+					}
 					
 					// Network Status Overview
-					const networkStatus = await this.plugin.carnivalNetwork.getNetworkStatus();
-					const networkMetrics = await this.plugin.carnivalNetwork.getNetworkMetrics();
+					const networkStatus = await runtimeCarnival.getNetworkStatus?.();
+					const networkMetrics = await runtimeCarnival.getNetworkMetrics?.();
+					const networkStatusTyped = (networkStatus as { status?: string; totalConnections?: number }) ?? { status: 'unknown', totalConnections: 0 };
+					const networkMetricsTyped = (networkMetrics as { uptime?: number; errorRate?: number }) ?? { uptime: 0, errorRate: 0 };
 					
 					const statusDiv = networkStatusContainer.createDiv('status-overview');
 					statusDiv.createEl('h5', { text: 'Network Overview' });
 					const statusGrid = statusDiv.createDiv('status-grid');
 					
 					const statusItems = [
-						{ label: 'Status', value: networkStatus.status, className: this.getStatusClass(networkStatus.status) },
-						{ label: 'Connected Territories', value: networkStatus.totalConnections },
-						{ label: 'Uptime', value: this.formatUptime(networkMetrics.uptime) },
-						{ label: 'Error Rate', value: `${(networkMetrics.errorRate * 100).toFixed(1)}%` }
+						{ label: 'Status', value: networkStatusTyped.status, className: this.getStatusClass(networkStatusTyped.status) },
+						{ label: 'Connected Territories', value: networkStatusTyped.totalConnections },
+						{ label: 'Uptime', value: this.formatUptime(networkMetricsTyped.uptime ?? 0) },
+						{ label: 'Error Rate', value: `${((networkMetricsTyped.errorRate ?? 0) * 100).toFixed(1)}%` }
 					];
 					
 					statusItems.forEach(item => {
@@ -366,7 +496,7 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 					});
 					
 					// Circuit Breaker Health
-					const health = registryService.getRegistryHealth();
+					const health = registryService.getRegistryHealth?.() ?? {};
 					const healthDiv = healthContainer.createDiv('health-display');
 					
 					if (Object.keys(health).length === 0) {
@@ -385,27 +515,59 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 					}
 					
 					// Metrics Display
-					const metrics = registryService.getRegistryMetrics();
+					const metrics = registryService.getRegistryMetrics?.() ?? {};
 					const metricsDiv = metricsContainer.createDiv('metrics-display');
 					metricsDiv.createEl('h5', { text: 'Request Metrics' });
 					
 					if (Object.keys(metrics).length === 0) {
 						metricsDiv.createEl('p', { text: 'No metrics available', cls: 'setting-item-description' });
 					} else {
-						for (const [endpoint, m] of Object.entries(metrics)) {
+						for (const [endpoint, mRaw] of Object.entries(metrics)) {
+							const m = mRaw as { requests: number; successes: number; failures: number };
+
+							// Convert to MetricDataPoint instances for consistency with observability types
+							const points: MetricDataPoint[] = [
+								{
+									name: 'requests',
+									value: m.requests,
+									timestamp: Date.now().toString(),
+									tags: { endpoint },
+									type: 'counter'
+								},
+								{
+									name: 'successes',
+									value: m.successes,
+									timestamp: Date.now().toString(),
+									tags: { endpoint },
+									type: 'counter'
+								},
+								{
+									name: 'failures',
+									value: m.failures,
+									timestamp: Date.now().toString(),
+									tags: { endpoint },
+									type: 'counter'
+								}
+							];
+
 							const metricItem = metricsDiv.createDiv('metric-item');
 							metricItem.createEl('div', { text: endpoint, cls: 'metric-endpoint' });
 							const metricStats = metricItem.createDiv('metric-stats');
-							metricStats.createEl('span', { text: `📈 ${m.requests}`, cls: 'metric-requests', title: 'Total Requests' });
-							metricStats.createEl('span', { text: `✓ ${m.successes}`, cls: 'metric-successes', title: 'Successful Requests' });
-							metricStats.createEl('span', { text: `✗ ${m.failures}`, cls: 'metric-failures', title: 'Failed Requests' });
-							const successRate = m.requests > 0 ? ((m.successes / m.requests) * 100).toFixed(1) : '0';
+
+							const req = points.find(p => p.name === 'requests') ?? { name: 'requests', value: 0, timestamp: Date.now().toString(), type: 'counter' } as MetricDataPoint;
+							const succ = points.find(p => p.name === 'successes') ?? { name: 'successes', value: 0, timestamp: Date.now().toString(), type: 'counter' } as MetricDataPoint;
+							const fail = points.find(p => p.name === 'failures') ?? { name: 'failures', value: 0, timestamp: Date.now().toString(), type: 'counter' } as MetricDataPoint;
+
+							metricStats.createEl('span', { text: `📈 ${req.value}`, cls: 'metric-requests', title: 'Total Requests' });
+							metricStats.createEl('span', { text: `✓ ${succ.value}`, cls: 'metric-successes', title: 'Successful Requests' });
+							metricStats.createEl('span', { text: `✗ ${fail.value}`, cls: 'metric-failures', title: 'Failed Requests' });
+							const successRate = req.value > 0 ? ((succ.value / req.value) * 100).toFixed(1) : '0';
 							metricStats.createEl('span', { text: `${successRate}%`, cls: 'metric-rate', title: 'Success Rate' });
 						}
 					}
 					
 					// Certificate Health
-					const certHealth = registryService.getCertificateHealth();
+					const certHealth = registryService.getCertificateHealth?.() ?? { total: 0, healthy: 0, expiringSoon: 0, expired: 0, revoked: 0 };
 					const certDiv = certificateContainer.createDiv('cert-display');
 					
 					const certItems = [
@@ -427,7 +589,7 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 					});
 					
 					// Network Topology
-					const topology = await registryService.getNetworkTopology();
+					const topology = await (registryService.getNetworkTopology?.() as Promise<any> ?? Promise.resolve({ territories: {}, capabilities: {} }));
 					const topoDiv = topologyContainer.createDiv('topology-display');
 					
 					// Territory breakdown
@@ -453,8 +615,8 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 					}
 				
 					// Cache Performance
-					const cacheMetrics = registryService.getCacheMetrics();
-					const cacheStatus = registryService.getCacheStatus();
+					const cacheMetrics = registryService.getCacheMetrics?.() ?? {};
+					const cacheStatus = registryService.getCacheStatus?.() ?? { size: 0, maxSize: 0 };
 					const cacheDiv = cacheContainer.createDiv('cache-display');
 					
 					const cacheOverview = cacheDiv.createDiv('cache-overview');

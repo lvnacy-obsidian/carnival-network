@@ -32,7 +32,7 @@ export * from './certificate-store-types';
  * - CircuitBreakerState
  * - CircuitState
  */
-export * from './circuit-breaker';
+export * from './circuit-breaker-types';
 
 /**
  * Error exports
@@ -92,6 +92,13 @@ export * from './rate-limiter-types';
  * - RegistryEndpoint
  */
 export * from './registry-types';
+
+/**
+ * Sentry exports:
+ * - SentrySDK
+ * - SentryTransaction
+ */
+export * from './sentry-types';
 
 /**
  * Validation exports

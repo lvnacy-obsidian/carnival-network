@@ -2,13 +2,20 @@
 import { Plugin } from 'obsidian';
 import { CarnivalNetworkClient } from './network/carnival-network-client';
 import {
+	applyObservabilityConfig,
 	joinCarnival,
 	leaveCarnival
 } from './network/carnival-network';
-import type { APIKeyStorage, CarnivalConfig, CarnivalNetworkClientInterface } from './types/public';
 import { CarnivalNetworkSettingsTab } from './ui/settings-tab';
 import { Log } from './utils/logger';
 import { getPlugin } from './utils/plugin-utils';
+import type {
+	APIKeyStorage,
+	CarnivalConfig,
+	CarnivalNetworkClientInterface,
+	ObservabilityProvider,
+	LocalRestAPIPublic
+} from './types/public';
 
 const mainLogger = {
 	context: 'Carnival Network Plugin',
@@ -28,6 +35,8 @@ const DEFAULT_SETTINGS: CarnivalNetworkSettings = {
 export default class CarnivalNetworkPlugin extends Plugin {
 	settings: CarnivalConfig;
 	private activeTroupes: Map<string, CarnivalNetworkClient> = new Map();
+	private observabilityProvider?: ObservabilityProvider | null;
+	private localRestAPIPublic?: LocalRestAPIPublic | null;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -39,15 +48,37 @@ export default class CarnivalNetworkPlugin extends Plugin {
 
 		// Verify Local REST API plugin is available
 		this.verifyDependencies();
+
+		// Apply observability configuration (register endpoints, initialize providers)
+		await applyObservabilityConfig();
 	}
 
 	async onunload(): Promise<void> {
 		// Cleanup all active network clients
 		for (const [performerId, troupe] of this.activeTroupes.entries()) {
 			Log.log(mainLogger, `🎭 Cleaning up troupe for: ${performerId}`);
-			await troupe.cleanup();
+			await troupe.leaveRing();
 		}
 		this.activeTroupes.clear();
+
+		// Cleanup observability provider and unregister metrics endpoint
+		try {
+			if (this.observabilityProvider) {
+				await this.observabilityProvider.cleanup();
+				this.observabilityProvider = null;
+			}
+		} catch (err) {
+			Log.warn(mainLogger, 'Error cleaning up observability provider:', err);
+		}
+
+		try {
+			if (this.localRestAPIPublic && typeof this.localRestAPIPublic.unregister === 'function') {
+				this.localRestAPIPublic.unregister();
+				this.localRestAPIPublic = null;
+			}
+		} catch (err) {
+			Log.warn(mainLogger, 'Error unregistering Local REST API extension:', err);
+		}
 
 		Log.log(mainLogger, '🎪 Carnival Network Plugin unloaded');
 	}
@@ -87,6 +118,6 @@ export default class CarnivalNetworkPlugin extends Plugin {
 	 * Public API: Allow performers to leave the carnival network
 	 */
 	async leaveCarnival(performerId: string): Promise<void> {
-		return leaveCarnival.call(this, performerId);
+		await leaveCarnival.call(this, performerId);
 	}
 }

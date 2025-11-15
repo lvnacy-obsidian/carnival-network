@@ -14,6 +14,7 @@ export interface CircuitBreakerConfig {
 	successThreshold: number;
 	timeout: number;
 	resetTimeout: number;
+	onStateChange?: (state: CircuitState) => void;
 }
 
 export interface CircuitBreakerState {

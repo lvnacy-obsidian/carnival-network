@@ -14,6 +14,8 @@
  * - WebhookHandlerConfig - Individual webhook handler configuration
  */
 
+import type { ObservabilityConfig } from './observability-types';
+
 export interface APIKeyConfig {
 	enabled: boolean;
 	permissions: string[];
@@ -47,6 +49,25 @@ export interface CarnivalConfig {
 
 	// Webhook settings (announcement system)
 	webhookConfig?: WebhookConfig;
+
+	// Integration settings (external services)
+	integrations?: {
+		github?: {
+			webhookSecret?: string;
+		};
+		beehiiv?: {
+			webhookSecret?: string;
+		};
+	};
+
+	// Optional: initial list of registry endpoints (seeded at startup).
+	// Managed at runtime by `HttpRegistryService.updateRegistryEndpoints`.
+	// Treat as read-only from consumers; the registry service is the authoritative
+	// source for endpoint updates at runtime.
+	readonly registryEndpoints?: readonly string[];
+
+	// Optional observability configuration (metrics + webhook export)
+	observability?: ObservabilityConfig;
 }
 
 export interface RateLimitConfig {

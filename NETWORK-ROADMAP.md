@@ -1,8 +1,8 @@
 # Carnival Records Plugin - Network Development Roadmap
 
-**Last Updated**: 2025-11-14  
-**Status**: Phase 2/5 Complete + Major Phase 3 Progress (Observability + Metric Retention Complete)  
-**Next Major Phase**: Complete Phase 3.2 (Archive Abstraction) + Phase 3.3 (External API) + Phase 4 (Database Integration)
+**Last Updated**: 2025-11-15  
+**Status**: Phase 2/5 Complete + Major Phase 3 Progress (Archive Abstraction + Minimal Observability)  
+**Next Major Phase**: Complete Phase 3.2 (Archive Abstraction Integration) + Phase 3.3 (External API) + Phase 4 (Database Integration)
 
 ---
 
@@ -122,7 +122,7 @@ This roadmap outlines the complete network infrastructure development for the Ca
 ### Phase 3: Advanced API & External Integration (🔄 In Progress)
 **Timeline**: Current development cycle (Nov 2025)  
 **Dependencies**: Phase 2 complete ✅, functional network data available ✅  
-**Recent Work**: Observability system with metric retention and buffer management complete ✅
+**Recent Work**: Archive abstraction layer implemented ✅, minimal observability with webhook+metrics endpoints ✅
 
 #### 3.1 Type System & Service Architecture (✅ Complete - Nov 2025)
 **Scope**: Establish proper type hierarchies and service interfaces
@@ -144,24 +144,15 @@ This roadmap outlines the complete network infrastructure development for the Ca
 - ✅ **CarnivalQueryService Refactored** - Proper interface implementation
   - Implements `QueryServiceInterface` with all 3 required methods
   - `queryTerritory()`, `queryAllTerritories()`, `getPerformerStatus()`
-  - Observability framework with 5 provider implementations complete
-  - Metric buffering with comprehensive buffer management
-  - Automatic periodic flushing with retry logic and dead letter queue
-  - Support for Prometheus, Datadog, Sentry, Elasticsearch, and custom HTTP providers
-- ✅ **Metric Retention & Buffer Management** - Production-ready buffering system
-  - `MetricBufferManager` with configurable size limits (default: 10,000 metrics)
-  - Three overflow strategies: drop-oldest, drop-newest, drop-random
-  - Age-based expiration with automatic cleanup (default: 5 min max age)
-  - Retry tracking with max attempts (default: 3 retries)
-  - Comprehensive statistics: added, flushed, dropped metrics with reasons
-  - Background cleanup every 30 seconds
-  - State export/import for persistence
-- ✅ **Observability Dashboard** - Real-time monitoring and alerting
-  - `ObservabilityDashboardBuilder` with health status determination
-  - Buffer health assessment with actionable recommendations
-  - Alert generation with severity levels (critical/error/warning/info)
-  - Provider health monitoring and circuit breaker integration
-  - Console and JSON output formatting
+- ✅ **Minimal Observability System** - Lightweight, plugin-native observability
+  - In-memory metrics registry with simple counters and gauges
+  - Prometheus-style metrics endpoint via `obsidian-local-rest-api` plugin (pull model)
+  - Webhook provider for push-based metrics with HMAC-SHA256 signature verification
+  - No external dependencies on monitoring platforms (self-contained)
+  - Pull model: Scrape `/carnival/metrics` endpoint for Prometheus-format metrics
+  - Push model: POST metrics to webhook with optional signature for integrity verification
+  - Integrated into plugin lifecycle (initialization on load, cleanup on unload)
+  - Settings UI for enabling metrics and configuring webhook endpoint/secret
 - ✅ **ActService Methods Implemented**
   - `queryActs()` - Full filtering and pagination support
   - `countActs()` - Count matching records
@@ -189,6 +180,7 @@ This roadmap outlines the complete network infrastructure development for the Ca
 - `.warp/2025-11-11-act-query-type-refactoring.md` - Type hierarchy details
 - `.warp/2025-11-11-carnival-query-service-refactoring.md` - Service refactoring
 - `.warp/2025-11-11-network-abstraction-review.md` - Network abstraction
+- `.warp/typescript-updates-and-metrics-api.md` - Observability implementation summary
 
 #### 3.2 Archive Abstraction Layer (🔄 In Progress - Nov 2025)
 **Scope**: Prepare architecture for Phase 4 database integration with carnival-themed storage abstraction
@@ -257,10 +249,11 @@ This roadmap outlines the complete network infrastructure development for the Ca
 - ⏳ `src/network/services/act-service.ts` refactoring (pending)
 
 **Current Status** (Nov 15, 2025):
-- Core abstraction layer complete and ready for integration
-- InMemoryArchive tested and functional
-- MockArchive available for testing
-- Next: Refactor ActService to consume ArchiveInterface
+- ✅ Core abstraction layer complete and ready for integration
+- ✅ InMemoryArchive tested and functional
+- ✅ MockArchive available for testing
+- ✅ Minimal observability system integrated (metrics + webhook provider)
+- ⏳ Next: Refactor ActService to consume ArchiveInterface
 
 **Phase 4 Benefit**: RxDB becomes RxDBArchive implementation, no business logic changes required
 

@@ -2,8 +2,8 @@
 
 **Project**: Obsidian Carnival Network Plugin  
 **Purpose**: Centralized network abstraction layer for distributed Obsidian vault coordination  
-**Last Updated**: 2025-11-14  
-**Current Status**: Phase 3.1+ Complete (Observability Providers + Metric Retention System)
+**Last Updated**: 2025-11-15  
+**Current Status**: Phase 3.2 In Progress (Archive Abstraction + Minimal Observability)
 
 ---
 
@@ -50,11 +50,12 @@ This changelog serves as a comprehensive reference for AI agents and developers 
 - ✅ **Network Infrastructure**: Circuit breaker, HTTP client, registry service
 - ✅ **Persistence Layer**: LRU cache with vault-based persistence
 - ✅ **Type System**: Carnival-themed type hierarchy established
-- ✅ **Observability Framework**: Five provider implementations complete
+- ✅ **Archive Abstraction**: ArchiveInterface with InMemoryArchive and MockArchive implementations
+- ✅ **Minimal Observability**: In-memory metrics + webhook provider + Prometheus endpoint
 - ✅ **Analytics Types**: Comprehensive analytics type system
 - ⏳ **Public API**: Abstraction layer in progress
 - ❌ **External API Service**: Removed (stub implementations incomplete)
-- ❌ **HTTP Network Protocol**: Removed (superseded by refactored architecture)
+- ❌ **Complex Observability Providers**: Removed (Datadog, Sentry, Elastic, Prometheus push - replaced with minimal system)
 
 ### Code Statistics (Uncommitted Changes)
 ```
@@ -73,6 +74,229 @@ Net Change:    -2,041 lines (significant simplification)
 ---
 
 ## Recent Session Work (2025-11-15)
+
+### Session Focus: TypeScript Safety + Minimal Observability Implementation
+**Duration**: Full implementation session  
+**Status**: ✅ Complete, Ready for Commit
+
+#### Key Accomplishments
+
+**1. Observability System Simplification** (NEW - Minimal Design)
+- ✅ Removed complex multi-provider observability system (5 providers → 1 webhook provider)
+  - **Deleted**: `prometheus.ts`, `datadog.ts`, `sentry.ts`, `elastic.ts`, `custom-provider.ts` (579 lines removed)
+  - **Rationale**: Obsidian plugin bundle size concerns + unnecessary complexity for single-file plugin
+  - **Replacement**: Minimal, plugin-native observability with two complementary approaches
+- ✅ Created lightweight in-memory metrics system:
+  - **File**: `src/network/services/observability/metrics.ts` (101 lines)
+  - Simple counters and gauges registry (Map-based)
+  - Prometheus text format exposition: `getPrometheusText()`
+  - Integration with `obsidian-local-rest-api` plugin for metrics endpoint
+  - Pull model: External systems scrape `/carnival/metrics` endpoint
+  - Zero external dependencies, fully self-contained
+- ✅ Implemented minimal webhook provider:
+  - **File**: `src/network/services/observability/webhook-provider.ts` (111 lines)
+  - HMAC-SHA256 signature generation for payload integrity
+  - Push model: POST metrics to configured webhook endpoint
+  - Optional authentication via API key (Bearer token)
+  - Retry logic via `BaseObservabilityProvider` with circuit breaker pattern
+  - Custom headers support for integration flexibility
+  - Headers: `X-Carnival-Signature: sha256=<hex>`, `X-Carnival-Ts: <ISO timestamp>`
+
+**2. Local REST API Type Façade** (NEW)
+- ✅ Created `src/types/public/local-rest-api-types.ts` (109 lines)
+  - Minimal type definitions for `obsidian-local-rest-api` plugin public API
+  - Avoids hard dependency on Express types (reduces bundle size)
+  - Types: `LocalRestAPIPublic`, `ExpressIRoute`, `LocalRestAPIRequest`, `LocalRestAPIResponse`
+  - Enables type-safe route registration without Express import
+  - Documentation with usage examples
+
+**3. Configuration Type Updates**
+- ✅ Enhanced `src/types/public/carnival-configuration-types.ts`:
+  - Added `observability?: ObservabilityConfig` field to `CarnivalConfig`
+  - Added `integrations?: { github?: { webhookSecret?: string }; beehiiv?: { webhookSecret?: string } }`
+  - Made `registryEndpoints` immutable: `readonly registryEndpoints?: readonly string[]`
+- ✅ Simplified `src/types/public/observability-types.ts`:
+  - Restricted `provider` to only `'webhook'` (removed prometheus, datadog, sentry, elastic, custom)
+  - Added `metricsEnabled?: boolean` for metrics endpoint toggle
+  - Added `webhookSecret?: string` for HMAC signing
+  - Documented that metrics endpoint is preferred for other monitoring backends
+
+**4. Plugin Lifecycle Integration**
+- ✅ Updated `src/main.ts` with observability lifecycle management:
+  - Added `private observabilityProvider?: ObservabilityProvider | null`
+  - Added `private localRestAPIPublic?: LocalRestAPIPublic | null`
+  - `onload()`: Calls `await applyObservabilityConfig()` to initialize provider and metrics endpoint
+  - `onunload()`: Cleans up provider with `await this.observabilityProvider.cleanup()` and unregisters REST API routes
+  - Changed troupe cleanup: `await troupe.cleanup()` → `await troupe.leaveRing()`
+  - Graceful error handling for cleanup failures
+- ✅ Implemented `applyObservabilityConfig()` function:
+  - Obtains Local REST API plugin instance via `getPublicApi(manifest)`
+  - Registers `/carnival/metrics` endpoint if metrics enabled
+  - Initializes webhook provider if configured
+  - Handles configuration changes at runtime (reinit support)
+
+**5. Settings UI Enhancements**
+- ✅ Updated `src/ui/settings-tab.ts` with observability controls:
+  - Added "Observability" section with:
+    - Enable observability toggle
+    - Provider dropdown (currently only "webhook")
+    - Webhook endpoint input field
+    - Webhook secret input field (for HMAC signing)
+    - Metrics endpoint toggle (enables `/carnival/metrics`)
+  - Settings UI saves and invokes plugin reconfiguration
+  - Guarded runtime calls: `(this.plugin as any).applyObservabilityConfig?.()`
+  - TypeScript safety improvements for plugin access patterns
+
+**6. TypeScript Safety Improvements**
+- ✅ Fixed unsafe `any` usages throughout observability module
+- ✅ Added proper type guards for optional features
+- ✅ Enhanced null safety for timestamp and metadata handling
+- ✅ Made `registryEndpoints` immutable in configuration (prevents accidental mutation from UI)
+
+**7. Type File Reorganization**
+- ✅ Deleted `src/types/public/webhooks-types.ts` (consolidated into other files)
+- ✅ Deleted `src/types/internal/circuit-breaker.ts` (moved to `circuit-breaker-types.ts`)
+- ✅ Created `src/types/internal/circuit-breaker-types.ts` for circuit breaker internals
+- ✅ Created `src/types/internal/sentry-types.ts` (retained for future use if needed)
+- ✅ Created `src/types/public/webhook-types.ts` (new consolidated webhook types)
+
+#### Architecture Overview
+
+**Observability Design Philosophy**:
+- **Minimal by design**: Single-file Obsidian plugin with strict bundle size constraints
+- **Two complementary models**:
+  - **Pull model (Metrics endpoint)**: External scraper (Prometheus, Grafana, etc.) pulls from `/carnival/metrics`
+  - **Push model (Webhook)**: Plugin pushes metrics to configured endpoint with HMAC signature
+- **No external SDKs**: All functionality implemented in-house, zero monitoring platform dependencies
+- **Plugin-native**: Leverages `obsidian-local-rest-api` for HTTP exposure, no separate server needed
+
+**Integration Pattern**:
+```typescript
+// Plugin lifecycle:
+1. onload() → applyObservabilityConfig()
+   - Get Local REST API instance
+   - Register /carnival/metrics endpoint (if enabled)
+   - Initialize webhook provider (if configured)
+
+2. During operation:
+   - Record metrics: incrementCounter(), setGauge()
+   - Webhook provider pushes periodically (if configured)
+   - External scrapers pull from /carnival/metrics (if enabled)
+
+3. onunload() → cleanup
+   - await observabilityProvider.cleanup()
+   - localRestAPIPublic.unregister()
+```
+
+**Webhook Signature Verification** (for webhook receivers):
+```typescript
+import crypto from 'crypto';
+
+function verifySignature(payload: string, signature: string, secret: string): boolean {
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(payload);
+  const computed = `sha256=${hmac.digest('hex')}`;
+  return signature === computed;
+}
+```
+
+#### Files Created
+```
+src/network/services/observability/
+├── metrics.ts                        # In-memory metrics + Prometheus endpoint (101 lines)
+└── webhook-provider.ts               # Webhook push provider with HMAC (111 lines)
+
+src/types/public/
+├── local-rest-api-types.ts          # Local REST API type façade (109 lines)
+├── webhook-types.ts                 # NEW consolidated webhook types
+└── observability-types.ts           # SIMPLIFIED (provider: 'webhook' only)
+
+src/types/internal/
+├── circuit-breaker-types.ts         # Circuit breaker types (moved)
+└── sentry-types.ts                  # Retained for future use
+
+.github/docs/
+└── webhook-receiver.md              # NEW (untracked) - Webhook receiver example
+
+.warp/
+└── typescript-updates-and-metrics-api.md  # Implementation summary
+```
+
+#### Files Deleted
+```
+src/network/services/observability/
+├── prometheus.ts                    # 121 lines - replaced by metrics.ts
+├── datadog.ts                       # 102 lines
+├── sentry.ts                        # 195 lines
+├── elastic.ts                       # 92 lines
+└── custom-provider.ts               # 69 lines
+
+src/types/public/
+└── webhooks-types.ts                # Consolidated into webhook-types.ts
+
+src/types/internal/
+└── circuit-breaker.ts               # Moved to circuit-breaker-types.ts
+```
+
+**Net Change**: -751 lines removed, +321 lines added = **-430 lines total** (significant simplification)
+
+#### Integration Status
+- ✅ Observability lifecycle integrated into plugin load/unload
+- ✅ Settings UI provides observability configuration controls
+- ✅ Metrics endpoint registered with Local REST API plugin
+- ✅ Webhook provider implements retry logic and circuit breaker pattern
+- ✅ HMAC signature generation for webhook payload integrity
+- ✅ TypeScript type safety improved (removed unsafe `any` usages)
+- ⏳ Manual testing required: verify metrics endpoint and webhook POST in dev environment
+
+#### Key Features Implemented
+
+**Metrics System**:
+- In-memory counters and gauges (Map-based storage)
+- Prometheus text format exposition
+- Metric name sanitization (alphanumeric + underscore)
+- Route registration with Local REST API plugin
+- GET `/carnival/metrics` returns Prometheus-format text
+
+**Webhook Provider**:
+- POST metrics to configured endpoint
+- HMAC-SHA256 payload signing with `webhookSecret` or `apiKey`
+- Signature header: `X-Carnival-Signature: sha256=<hex>`
+- Timestamp header: `X-Carnival-Ts: <ISO timestamp>`
+- Authorization header: `Authorization: Bearer <apiKey>` (if provided)
+- Custom headers support
+- Retry logic with exponential backoff
+- Circuit breaker integration
+
+**Configuration**:
+- Observability enabled/disabled toggle
+- Provider selection (currently: webhook only)
+- Webhook endpoint URL
+- Webhook secret for HMAC signing
+- Metrics endpoint toggle
+
+#### Known Issues / Remaining Work
+- TypeScript/lint warnings in `src/ui/settings-tab.ts`:
+  - Some types cast as `any` for plugin access (e.g., `applyObservabilityConfig` call)
+  - Proper typed plugin interface would be cleaner
+- Documentation gaps:
+  - Short README snippet showing how to enable metrics and webhook
+  - Example webhook receiver with HMAC verification (draft exists at `.github/docs/webhook-receiver.md`)
+- E2E verification pending:
+  - Test metrics endpoint registration with Local REST API plugin
+  - Verify webhook POST with HMAC signature in dev environment
+  - Confirm Prometheus scraper compatibility
+
+#### Next Steps
+1. Manual testing in Obsidian dev environment with Local REST API plugin installed
+2. Create example webhook receiver (Node.js/Express) demonstrating HMAC verification
+3. Add documentation for metrics endpoint and webhook configuration
+4. Consider additional metric types (histogram support for latency tracking)
+5. Integration tests for metrics recording and webhook delivery
+
+---
+
+## Recent Session Work (2025-11-15) - Earlier
 
 ### Session Focus: Archive Abstraction Layer - Initial Implementation
 **Duration**: Core implementation session  

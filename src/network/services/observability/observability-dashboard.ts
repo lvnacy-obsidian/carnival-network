@@ -1,8 +1,8 @@
 import type {
 	BufferStats,
 	MetricDataPoint,
-    ObservabilityAlert,
-    ObservabilityDashboard,
+	ObservabilityAlert,
+	ObservabilityDashboard,
 	ProviderMetrics
 } from '../../../types/public';
 
@@ -44,7 +44,7 @@ export class ObservabilityDashboardBuilder {
 				deadLetterQueue: data.deadLetterQueue,
 				circuitState: data.circuitState
 			} : null,
-			recentMetrics: data.recentMetrics || [],
+			recentMetrics: data.recentMetrics ?? [],
 			alerts,
 			performance: this.calculatePerformance(data)
 		};
@@ -153,7 +153,6 @@ export class ObservabilityDashboardBuilder {
 		isProviderHealthy?: boolean;
 	}): ObservabilityAlert[] {
 		const alerts: ObservabilityAlert[] = [];
-		const now = Date.now();
 		
 		// Buffer capacity alerts
 		if (data.bufferStats.utilizationPercent > 95) {
@@ -231,7 +230,7 @@ export class ObservabilityDashboardBuilder {
 		
 		// Dead letter queue alerts
 		if (data.deadLetterQueue) {
-			const { queueSize, metricsInQueue } = data.deadLetterQueue;
+			const { metricsInQueue } = data.deadLetterQueue;
 			
 			if (metricsInQueue > 1000) {
 				alerts.push({
@@ -293,7 +292,7 @@ export class ObservabilityDashboardBuilder {
 			: 0;
 		
 		// Calculate flush success rate
-		const flushSuccessRate = data.providerMetrics?.successRate || 100;
+		const flushSuccessRate = data.providerMetrics?.successRate ?? 100;
 		
 		return {
 			flushLatency: [], // Would be populated from actual timing data
@@ -315,7 +314,7 @@ export class ObservabilityDashboardBuilder {
 		
 		// Health status
 		const healthEmoji = dashboard.health.status === 'healthy' ? '✅' : 
-		                    dashboard.health.status === 'degraded' ? '⚠️' : '❌';
+			dashboard.health.status === 'degraded' ? '⚠️' : '❌';
 		lines.push(`${healthEmoji} Status: ${dashboard.health.status.toUpperCase()}`);
 		lines.push(`   ${dashboard.health.message}`);
 		lines.push('');
@@ -358,8 +357,8 @@ export class ObservabilityDashboardBuilder {
 			lines.push('🚨 ALERTS');
 			for (const alert of dashboard.alerts) {
 				const emoji = alert.severity === 'critical' ? '🔴' :
-				              alert.severity === 'error' ? '🟠' :
-				              alert.severity === 'warning' ? '🟡' : '🔵';
+					alert.severity === 'error' ? '🟠' :
+						alert.severity === 'warning' ? '🟡' : '🔵';
 				lines.push(`   ${emoji} ${alert.message}`);
 				if (alert.actionable) {
 					lines.push(`      → ${alert.actionable}`);

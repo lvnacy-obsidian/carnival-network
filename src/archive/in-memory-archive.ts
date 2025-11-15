@@ -64,11 +64,11 @@ export class InMemoryArchive implements ArchiveInterface {
 		this.records.set(record.id, record);
 		this.updateIndexes(record);
 		
-		return record;
+		return await Promise.resolve(record);
 	}
 	
 	async findById(id: string): Promise<CarnivalRecord | null> {
-		return this.records.get(id) ?? null;
+		return await Promise.resolve(this.records.get(id) ?? null);
 	}
 	
 	async find(query: ArchiveQueryOptions): Promise<CarnivalRecord[]> {
@@ -92,9 +92,7 @@ export class InMemoryArchive implements ArchiveInterface {
 		}
 		
 		// If no indexes matched, use all records
-		if (candidateIds === null) {
-			candidateIds = new Set(this.records.keys());
-		}
+		candidateIds ??= new Set(this.records.keys());
 		
 		// Filter candidates
 		let results: CarnivalRecord[] = [];
@@ -119,7 +117,7 @@ export class InMemoryArchive implements ArchiveInterface {
 		const offset = query.offset ?? 0;
 		const limit = query.limit ?? results.length;
 		
-		return results.slice(offset, offset + limit);
+		return await Promise.resolve(results.slice(offset, offset + limit));
 	}
 	
 	async findOne(query: ArchiveQueryOptions): Promise<CarnivalRecord | null> {
@@ -147,7 +145,7 @@ export class InMemoryArchive implements ArchiveInterface {
 		this.records.set(id, updated);
 		this.updateIndexes(updated);
 		
-		return updated;
+		return await Promise.resolve(updated);
 	}
 	
 	async delete(id: string): Promise<boolean> {
@@ -159,7 +157,7 @@ export class InMemoryArchive implements ArchiveInterface {
 		this.records.delete(id);
 		this.removeFromIndexes(record);
 		
-		return true;
+		return await Promise.resolve(true);
 	}
 	
 	/**
@@ -174,11 +172,11 @@ export class InMemoryArchive implements ArchiveInterface {
 	}
 	
 	async exists(id: string): Promise<boolean> {
-		return this.records.has(id);
+		return await Promise.resolve(this.records.has(id));
 	}
 	
 	async all(): Promise<CarnivalRecord[]> {
-		return Array.from(this.records.values());
+		return await Promise.resolve(Array.from(this.records.values()));
 	}
 	
 	/**
@@ -267,16 +265,19 @@ export class InMemoryArchive implements ArchiveInterface {
 	 */
 	
 	async createIndex(field: keyof CarnivalRecord): Promise<void> {
+		await Promise.resolve();
 		// Indexes are automatically maintained
 		Log.log(archiveLogger, `Index on ${String(field)} is automatically maintained`);
 	}
 	
 	async dropIndex(field: keyof CarnivalRecord): Promise<void> {
+		await Promise.resolve();
 		// Cannot drop core indexes
 		Log.warn(archiveLogger, `Cannot drop index on ${String(field)} - automatically maintained`);
 	}
 	
 	async rebuildIndexes(): Promise<void> {
+		await Promise.resolve();
 		Log.log(archiveLogger, '🔨 Rebuilding indexes...');
 		
 		// Clear indexes
@@ -325,17 +326,18 @@ export class InMemoryArchive implements ArchiveInterface {
 			total + JSON.stringify(record).length, 0
 		);
 		
-		return {
+		return await Promise.resolve({
 			totalRecords: records.length,
 			recordsByTerritory,
 			recordsByType,
 			oldestRecord: oldest !== Infinity ? new Date(oldest).toISOString() : undefined,
 			newestRecord: newest !== 0 ? new Date(newest).toISOString() : undefined,
 			storageSize
-		};
+		});
 	}
 	
 	async clear(): Promise<void> {
+		await Promise.resolve();
 		this.records.clear();
 		this.byTerritory.clear();
 		this.byActType.clear();
@@ -361,19 +363,28 @@ export class InMemoryArchive implements ArchiveInterface {
 		if (!this.byTerritory.has(record.territory)) {
 			this.byTerritory.set(record.territory, new Set());
 		}
-		this.byTerritory.get(record.territory)!.add(record.id);
+		const territorySet = this.byTerritory.get(record.territory);
+		if (territorySet) {
+			territorySet.add(record.id);
+		}
 		
 		// ActType index
 		if (!this.byActType.has(record.actType)) {
 			this.byActType.set(record.actType, new Set());
 		}
-		this.byActType.get(record.actType)!.add(record.id);
+		const actTypeSet = this.byActType.get(record.actType);
+		if (actTypeSet) {
+			actTypeSet.add(record.id);
+		}
 		
 		// Status index
 		if (!this.byStatus.has(record.status)) {
 			this.byStatus.set(record.status, new Set());
 		}
-		this.byStatus.get(record.status)!.add(record.id);
+		const statusSet = this.byStatus.get(record.status);
+		if (statusSet) {
+			statusSet.add(record.id);
+		}
 		
 		// Performer index
 		if (record.metadata.performerId) {
@@ -381,7 +392,10 @@ export class InMemoryArchive implements ArchiveInterface {
 			if (!this.byPerformer.has(performerId)) {
 				this.byPerformer.set(performerId, new Set());
 			}
-			this.byPerformer.get(performerId)!.add(record.id);
+			const performerSet = this.byPerformer.get(performerId);
+			if (performerSet) {
+				performerSet.add(record.id);
+			}
 		}
 	}
 	

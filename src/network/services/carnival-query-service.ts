@@ -9,7 +9,6 @@ import type {
 	AnalyticsData,
 	CapabilityAnalytics,
 	CarnivalActivity,
-	CarnivalConfig,
 	CarnivalQuery,
 	CarnivalTopology,
 	LogContext,
@@ -51,8 +50,8 @@ export class CarnivalQueryService implements QueryServiceInterface {
 
 		// Initialize metric buffer
 		this.metricBuffer = new MetricBufferManager({
-			maxSize: observabilityConfig?.maxBufferSize || 10000,
-			maxAgeMs: observabilityConfig?.flushIntervalMs || 60000,
+			maxSize: observabilityConfig?.maxBufferSize ?? 10000,
+			maxAgeMs: observabilityConfig?.flushIntervalMs ?? 60000,
 			overflowStrategy: 'drop-oldest',
 			enableMetrics: true,
 			warningThreshold: 80
@@ -75,7 +74,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				config,
 				{
 					validateConfig: true,
-					testConnection: config.testConnectionOnInit || false,
+					testConnection: config.testConnectionOnInit ?? false,
 					throwOnValidationError: false // Don't fail if observability can't initialize
 				}
 			);
@@ -83,7 +82,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 			this.metricsEnabled = true;
 
 			// Start flush interval
-			this.startFlushInterval(config.flushIntervalMs || 60000);
+			this.startFlushInterval(config.flushIntervalMs ?? 60000);
 
 			Log.log(queryLogger, `✅ ${config.provider} observability initialized`);
 		} catch (error) {
@@ -112,21 +111,21 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				timestamp: now,
 				tags: { territory, queryType: query.type },
 				type: 'counter'
-			}
+			};
 			
 			this.recordMetric(territoryMetric);
 
 			const performers = this.registryAccess.getPerformersByTerritory(territory);
 			
 			if (performers.length === 0) {
-				return {
+				return await Promise.resolve({
 					success: false,
 					territory,
 					performerId: 'carnival-query-service',
 					data: null,
 					timestamp: new Date().toISOString(),
 					error: `No performers found in territory: ${territory}`
-				};
+				});
 			}
 
 			// Execute query based on type
@@ -146,25 +145,25 @@ export class CarnivalQueryService implements QueryServiceInterface {
 					throw new Error(`Unknown query type: ${query.type}`);
 			}
 
-			return {
+			return await Promise.resolve({
 				success: true,
 				territory,
 				performerId: 'carnival-query-service',
 				data,
 				timestamp: new Date().toISOString()
-			};
+			});
 
 		} catch (error) {
 			Log.error(queryLogger, `Failed to query territory ${territory}:`, error);
 			
-			return {
+			return await Promise.resolve({
 				success: false,
 				territory,
 				performerId: 'carnival-query-service',
 				data: null,
 				timestamp: new Date().toISOString(),
 				error: error instanceof Error ? error.message : 'Unknown error'
-			};
+			});
 		}
 	}
 
@@ -182,7 +181,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				timestamp: now,
 				tags: { queryType: query.type },
 				type: 'counter'
-			}
+			};
 			
 			this.recordMetric(allTerritoriesMetric);
 
@@ -251,11 +250,11 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				timestamp: now.toString(),
 				tags: { performerId, status },
 				type: 'counter'
-			}
+			};
 
 			this.recordMetric(performerStatusMetric);
 
-			return performanceStatus;
+			return await Promise.resolve(performanceStatus);
 
 		} catch (error) {
 			if (error instanceof NotFoundError) {
@@ -386,7 +385,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				timestamp: hours.toString(),
 				tags: { hours:  hours.toString() },
 				type: 'counter'
-			}
+			};
 
 			this.recordMetric(recentActivityMetric);
 			
@@ -639,7 +638,7 @@ export class CarnivalQueryService implements QueryServiceInterface {
 				type: 'counter',
 				timestamp: new Date().toISOString(),
 				tags: {
-					reason: result.reason || 'unknown'
+					reason: result.reason ?? 'unknown'
 				}
 			});
 		}

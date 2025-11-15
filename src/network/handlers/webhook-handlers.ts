@@ -8,8 +8,9 @@ import { Log } from '../../utils/logger';
 import type {
 	APIRequest,
 	BeehiivPostData,
+	BeehiivSubscriberData,
 	BeehiivWebhookPayload,
-	CrossVaultRecord,
+	CarnivalRecord,
 	GitHubWebhookPayload,
 	LogContext,
 	WebhookResponse
@@ -32,7 +33,7 @@ export class WebhookHandlers {
 	 * Handle GitHub webhook
 	 * POST /api/webhooks/github
 	 */
-	async handleGitHub(request: APIRequest): Promise<WebhookVerifier> {
+	async handleGitHub(request: APIRequest): Promise<WebhookResponse> {
 		// Verify GitHub signature
 		if (!this.verifier.verifyGitHub(request)) {
 			throw new AuthenticationError(
@@ -44,13 +45,14 @@ export class WebhookHandlers {
 		const payload = this.parseGitHubPayload(request.body);
 		
 		if (!payload.action || !payload.repository) {
-			throw new ValidationError(
-				'Invalid GitHub webhook payload',
-				{
-					action: payload.action ? undefined : 'Required field missing',
-					repository: payload.repository ? undefined : 'Required field missing'
-				}
-			);
+			const errors: Record<string, string> = {};
+			if (!payload.action) {
+				errors.action = 'action is required';
+			}
+			if (!payload.repository) {
+				errors.repository = 'repository is required';
+			}
+			throw new ValidationError('Invalid GitHub webhook payload', errors);
 		}
 		
 		try {
@@ -123,19 +125,20 @@ export class WebhookHandlers {
 	private async handleGitHubPullRequest(payload: GitHubWebhookPayload): Promise<void> {
 		
 		if (!payload.pull_request || !payload.repository) {
-			throw new ValidationError(
-				'Invalid GitHub pull request payload',
-				{
-					pull_request: payload.pull_request ? undefined : 'Required field missing',
-					repository: payload.repository ? undefined : 'Required field missing'
-				}
-			);
+			const errors: Record<string, string> = {};
+			if (!payload.pull_request) {
+				errors.pull_request = 'pull_request is required';
+			}
+			if (!payload.repository) {
+				errors.repository = 'repository is required';
+			}
+			throw new ValidationError('Invalid GitHub pull request payload', errors);
 		}
 		
 		const pr = payload.pull_request;
 		const repo = payload.repository;
 		
-		const record: CrossVaultRecord = {
+		const record: CarnivalRecord = {
 			id: `github-pr-${ repo.id }-${ pr.number }-${ Date.now() }`,
 			title: `GitHub PR: ${pr.title}`,
 			territory: 'github-integrations',
@@ -173,19 +176,20 @@ export class WebhookHandlers {
 	private async handleGitHubIssue(payload: GitHubWebhookPayload): Promise<void> {
 
 		if (!payload.issue || !payload.repository) {
-			throw new ValidationError(
-				'Invalid GitHub pull request payload',
-				{
-					pull_request: payload.pull_request ? undefined : 'Required field missing',
-					repository: payload.repository ? undefined : 'Required field missing'
-				}
-			);
+			const errors: Record<string, string> = {};
+			if (!payload.issue) {
+				errors.issue = 'issue is required';
+			}
+			if (!payload.repository) {
+				errors.repository = 'repository is required';
+			}
+			throw new ValidationError('Invalid GitHub issue payload', errors);
 		}
 
 		const { issue } = payload;
 		const repo = payload.repository;
 
-		const record: CrossVaultRecord = {
+		const record: CarnivalRecord = {
 			id: `github-issue-${ repo.id }-${ issue.number }-${ Date.now() }`,
 			title: `GitHub Issue: ${ issue.title }`,
 			territory: 'github-integrations',
@@ -202,7 +206,7 @@ export class WebhookHandlers {
 				repository: repo.full_name,
 				issueNumber: issue.number,
 				author: issue.user.login,
-				labels: issue.labels?.map(l => l.name) ?? [],
+				labels: issue.labels?.map((l: { name: string }) => l.name) ?? [],
 				githubUrl: issue.html_url,
 				createdBy: 'github-webhook',
 				createdVia: 'external-api'
@@ -248,7 +252,7 @@ export class WebhookHandlers {
 				createdBy: 'beehiiv-webhook',
 				createdVia: 'external-api'
 			},
-			createdAt: data.published_at ?? new Date().toISOString(),
+			createdAt: data.published_at ? new Date(data.published_at) : new Date(),
 			status: 'active',
 			syncPreferences: {
 				requireAck: false,
@@ -261,8 +265,9 @@ export class WebhookHandlers {
 		Log.log(webhookLogger, `Beehiiv post published: ${ data.post.title }`);
 	}
 
-	private async handleBeehiivSubscriberCreated(data: any): Promise<void> {
-		const record: CrossVaultRecord = {
+	private async handleBeehiivSubscriberCreated(payload: BeehiivWebhookPayload): Promise<void> {
+		const data = payload.data as BeehiivSubscriberData;
+		const record: CarnivalRecord = {
 			id: `beehiiv-subscriber-${ data.subscriber.id }-${ Date.now() }`,
 			title: `New Subscriber: ${ data.subscriber.email }`,
 			territory: 'newsletter-growth',

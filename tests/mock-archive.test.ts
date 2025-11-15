@@ -26,7 +26,7 @@ import type {
  */
 export interface MethodCall {
 	method: string;
-	args: any[];
+	args: unknown[];
 	timestamp: number;
 }
 
@@ -344,7 +344,7 @@ export class MockArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 	
-	private recordCall(method: string, args: any[]): void {
+	private recordCall(method: string, args: unknown[]): void {
 		this.calls.push({
 			method,
 			args,

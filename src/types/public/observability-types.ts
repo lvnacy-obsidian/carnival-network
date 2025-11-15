@@ -94,7 +94,10 @@ export interface ObservabilityAlert {
 
 export interface ObservabilityConfig {
 	enabled: boolean;
-	provider?: 'prometheus' | 'datadog' | 'sentry' | 'elasticsearch' | 'custom';
+	// Only webhook is supported directly by the plugin; other backends
+	// should consume the metrics endpoint instead of requiring built-in
+	// providers. Keep provider optional so metrics-only mode is possible.
+	provider?: 'webhook';
 	endpoint?: string;
 	apiKey?: string;
 	flushIntervalMs?: number;
@@ -127,6 +130,12 @@ export interface ObservabilityConfig {
 	// Connection testing
 	testConnectionOnInit?: boolean;
 	connectionTimeoutMs?: number;
+
+	// Enable exposing a metrics endpoint via Local REST API
+	metricsEnabled?: boolean;
+
+	// Optional secret used to HMAC-sign webhook payloads
+	webhookSecret?: string;
 }
 
 /**

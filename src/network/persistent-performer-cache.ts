@@ -310,16 +310,8 @@ export class PersistentPerformerCache {
 
 			if (parsed.cache && parsed.accessOrder) {
 				// Restore cache entries
-				for (const [id, entryData] of Object.entries(parsed.cache as Record<string, any>)) {
-					const entry: PerformerCacheEntry = {
-						performer: entryData.performer,
-						territory: entryData.territory,
-						lastAccessed: entryData.lastAccessed,
-						addedAt: entryData.addedAt,
-						accessCount: entryData.accessCount,
-						ttl: entryData.ttl
-					};
-					this.cache.set(id, entry);
+				for (const [id, entryData] of Object.entries(parsed.cache as Record<string, PerformerCacheEntry>)) {
+					this.cache.set(id, entryData);
 				}
 
 				// Restore access order

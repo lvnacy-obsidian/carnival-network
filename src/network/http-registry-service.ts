@@ -42,7 +42,7 @@ export class HttpRegistryService implements TerritoryServiceInterface {
 	private registryEndpoints: string[] = [];
 	private localApiPort: number = 27123;
 	private localApiKey: string = '';
-	private heartbeatIntervals: Map<string, number> = new Map();
+	private heartbeatIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
 	private endpointManager?: RegistryEndpointManager;
 	private tlsConfig?: TLSConfig;
 	private storage: APIKeyStorage;
@@ -80,10 +80,17 @@ export class HttpRegistryService implements TerritoryServiceInterface {
 			}
 
 			// Initialize default registry endpoints
-			this.registryEndpoints = this.config.registryEndpoints ?? [
-				'http://localhost:27123', // Local registry
-				...this.getDefaultRegistryEndpoints()
-			];
+			// Initialize default registry endpoints. If the config provides a readonly
+			// array we copy it into an internal mutable array so the service can
+			// manage (filter/update) endpoints without mutating the original config.
+			const seededEndpoints = Array.isArray(this.config.registryEndpoints)
+				? [...this.config.registryEndpoints]
+				: [
+					'http://localhost:27123', // Local registry
+					...this.getDefaultRegistryEndpoints()
+				];
+
+			this.registryEndpoints = seededEndpoints;
 
 			// Enforce HTTPS for all endpoints except localhost/dev
 			this.registryEndpoints = this.registryEndpoints.filter(ep => {
@@ -421,10 +428,10 @@ export class HttpRegistryService implements TerritoryServiceInterface {
 		}
 
 		try {
-			const data = await response.json();
+			const data = await response.json() as unknown;
 			validateRegistryResponse(data);
 			// After validation we know data has performers array
-			return validatePerformers((data as { performers: unknown[] }).performers);
+			return validatePerformers((data as any).performers as unknown[]);
 		} catch (error) {
 			if (error instanceof ValidationError) {
 				Log.error(httpRegistryLogger, `📡 Invalid response from registry ${registryUrl}:`, error);

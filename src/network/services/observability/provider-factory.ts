@@ -1,8 +1,4 @@
-import { CustomHTTPProvider } from './custom-provider';
-import { DatadogProvider } from './datadog';
-import { ElasticsearchProvider } from './elastic';
-import { PrometheusProvider } from './prometheus';
-import { SentryProvider } from './sentry';
+import { WebhookProvider } from './webhook-provider';
 import { ProviderConfigValidator } from './provider-config-validator';
 import { ProviderConfigurationError } from '../../../errors/provider-configuration-error';
 import { Log } from '../../../utils/logger';
@@ -23,16 +19,8 @@ const providerFactoryLogger: LogContext = {
 export class ObservabilityProviderFactory {
 	static createProvider(config: ObservabilityConfig): ObservabilityProvider {
 		switch (config.provider) {
-			case 'prometheus':
-				return new PrometheusProvider();
-			case 'datadog':
-				return new DatadogProvider();
-			case 'sentry':
-				return new SentryProvider();
-			case 'elasticsearch':
-				return new ElasticsearchProvider();
-			case 'custom':
-				return new CustomHTTPProvider();
+			case 'webhook':
+				return new WebhookProvider();
 			default:
 				throw new ProviderConfigurationError(
 					'unknown',
@@ -53,7 +41,7 @@ export class ObservabilityProviderFactory {
 			validateConfig = true,
 			testConnection = false,
 			throwOnValidationError = true
-		} = options || {};
+		} = options ?? {};
 
 		if (!config.provider) {
 			throw new ProviderConfigurationError(

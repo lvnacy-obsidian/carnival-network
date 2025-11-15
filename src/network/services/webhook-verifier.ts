@@ -2,7 +2,7 @@
 import { Log } from '../../utils/logger';
 import type {
 	APIRequest,
-	CarnivalNetworkSettings
+	CarnivalConfig
 } from '../../types/public';
 
 const verifierLogger = {
@@ -14,7 +14,7 @@ const verifierLogger = {
  * Handles webhook signature verification
  */
 export class WebhookVerifier {
-	constructor(private readonly settings: CarnivalNetworkSettings) {}
+	constructor(private readonly settings: CarnivalConfig) {}
 
 	/**
 	 * Verify GitHub webhook signature

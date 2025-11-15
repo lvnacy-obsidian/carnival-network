@@ -7,7 +7,7 @@
  * - BufferedMetric
  */
 
-import { MetricDataPoint } from "../public";
+import { MetricDataPoint } from '../public';
 
 /**
  * Internal: Metric entry with metadata

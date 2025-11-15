@@ -97,6 +97,16 @@ export * from './carnival-performers-types';
 export * from './carnival-service-types';
 
 /**
+ * Local REST API types exports
+ * - LocalRestApiPublicApi
+ * - LocalRestApiRequest
+ * - LocalRestApiResponse
+ * - LocalRestApiRouteHandler
+ * - ExpressIRoute
+ */
+export * from './local-rest-api-types';
+
+/**
  * Logging exports
  * - LogContext
  */
@@ -160,8 +170,19 @@ export * from './search-types';
 export * from './secure-store-types';
 
 /**
- * Webhook exports
+ * Webhook types exports
+ * - BeehiivPost
+ * - BeehiivPostData
+ * - BeehiivSubscriber
+ * - BeehiivSubscriberData
+ * - BeehiivWebhookPayload
+ * - GitHubIssue
+ * - GitHubPullRequest
+ * - GitHubRepository
+ * - GitHubUser
+ * - GitHubWebhookPayload
  * - WebhookHandlerInterface
  * - WebhookPayload
+ * - WebhookResponse
  */
-export * from './webhooks-types';
+export * from './webhook-types';

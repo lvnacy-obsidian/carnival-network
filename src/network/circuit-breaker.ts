@@ -215,9 +215,9 @@ export class CircuitBreaker {
 		this.stateChangeTime = Date.now();
 		
 		// Optional callback for state changes (if added to config)
-		if ((this.options as any).onStateChange && oldState !== newState) {
+		if (this.options.onStateChange && oldState !== newState) {
 			try {
-				(this.options as any).onStateChange(newState);
+				this.options.onStateChange(newState);
 			} catch (error) {
 				Log.error({
 					context: 'Circuit Breaker',
