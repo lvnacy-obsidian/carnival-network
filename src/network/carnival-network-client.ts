@@ -14,7 +14,7 @@ import type {
 	ActServiceInterface,
 	APIKeyStorage,
 	CarnivalConfig,
-	CarnivalRecord,
+	CarnivalAct,
 	ActQueryOptions,
 	ActCountOptions,
 	SearchOptions,
@@ -199,7 +199,7 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 	 * ========================================================================
 	 */
 
-	async broadcastAct(act: CarnivalRecord): Promise<void> {
+	async broadcastAct(act: CarnivalAct): Promise<void> {
 		this.ensurePerforming();
 		
 		// Enrich record with performer metadata if not present
@@ -212,7 +212,7 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 		Log.log(clientLogger, `📢 Act broadcast: "${act.title}" (${act.id})`);
 	}
 
-	queryActs(options: ActQueryOptions): CarnivalRecord[] {
+	queryActs(options: ActQueryOptions): CarnivalAct[] {
 		this.ensurePerforming();
 		
 		const acts = this.actService.queryActs(options);

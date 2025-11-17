@@ -113,8 +113,8 @@ export interface ICarnivalNetworkClient {
   updatePerformanceStatus(status: Partial<PerformanceStatus>): Promise<void>;
 
   // Act Operations
-  broadcastAct(record: CarnivalRecord): Promise<void>;
-  queryActs(options: ActQueryOptions): CarnivalRecord[];
+  broadcastAct(record: CarnivalAct): Promise<void>;
+  queryActs(options: ActQueryOptions): CarnivalAct[];
   countActs(options: ActCountOptions): number;
   searchCarnival(options: SearchOptions): SearchResult[];
 
@@ -168,7 +168,7 @@ async onunload() {
 // handlers/webhook-handlers.ts
 export interface WebhookHandlerInterface {
   handleIncoming(payload: unknown): Promise<void>;
-  formatOutgoing(record: CarnivalRecord): unknown;
+  formatOutgoing(record: CarnivalAct): unknown;
   verify(payload: unknown, signature: string): boolean;
 }
 ```
@@ -181,7 +181,7 @@ export class DiscordWebhookHandler implements WebhookHandlerInterface {
     // Discord-specific logic
   }
   
-  formatOutgoing(record: CarnivalRecord): DiscordEmbed {
+  formatOutgoing(record: CarnivalAct): DiscordEmbed {
     // Format as Discord embed
   }
 }
@@ -201,7 +201,7 @@ export class SlackWebhookHandler implements WebhookHandlerInterface {
 4. `HttpRegistryService` → Keep name (still technically a registry)
 
 ### Type Renames
-1. `CrossVaultRecord` → `CarnivalRecord`
+1. `CrossVaultRecord` → `CarnivalAct`
 2. `RecordService` → `ActService`
 3. `RegistryNode` → `RegistryEntry`
 4. `NodeStatus` → `PerformanceStatus`

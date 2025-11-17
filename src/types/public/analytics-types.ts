@@ -35,6 +35,7 @@ export interface AnalyticsData {
 	activity?: ActivityAnalytics;
 	capabilities?: CapabilityAnalytics;
 	performance?: PerformanceAnalytics;
+	timeframe?: string;
 }
 
 /**
@@ -71,6 +72,25 @@ export interface CarnivalActivity {
 	territory?: string;
 	description: string;
 	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Network status and health snapshot
+ * Combines topology and performance metrics for system monitoring
+ */
+export interface CarnivalStatus {
+    health: string;
+    uptime: {
+        milliseconds: number;
+        formatted: string;
+    };
+    network: {
+        totalPerformers: number;
+        connectedPerformers: number;
+        territories: number;
+        activeRegistries: number;
+    };
+    capabilities: string[];
 }
 
 /**

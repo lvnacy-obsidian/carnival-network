@@ -29,20 +29,20 @@ export interface ArchiveInterface {
   readonly name: string;
   
   // CRUD
-  create(record: CarnivalRecord): Promise<CarnivalRecord>;
-  findById(id: string): Promise<CarnivalRecord | null>;
-  find(query: ArchiveQueryOptions): Promise<CarnivalRecord[]>;
-  findOne(query: ArchiveQueryOptions): Promise<CarnivalRecord | null>;
-  update(id: string, updates: Partial<CarnivalRecord>): Promise<CarnivalRecord | null>;
+  create(record: CarnivalAct): Promise<CarnivalAct>;
+  findById(id: string): Promise<CarnivalAct | null>;
+  find(query: ArchiveQueryOptions): Promise<CarnivalAct[]>;
+  findOne(query: ArchiveQueryOptions): Promise<CarnivalAct | null>;
+  update(id: string, updates: Partial<CarnivalAct>): Promise<CarnivalAct | null>;
   delete(id: string): Promise<boolean>;
   
   // Queries
   count(query: ArchiveQueryOptions): Promise<number>;
   exists(id: string): Promise<boolean>;
-  all(): Promise<CarnivalRecord[]>;
+  all(): Promise<CarnivalAct[]>;
   
   // Batch Operations
-  bulkCreate(records: CarnivalRecord[]): Promise<ArchiveBatchResult>;
+  bulkCreate(records: CarnivalAct[]): Promise<ArchiveBatchResult>;
   bulkUpdate(updates: Array<{...}>): Promise<ArchiveBatchResult>;
   bulkDelete(ids: string[]): Promise<ArchiveBatchResult>;
   
@@ -130,10 +130,10 @@ interface MockArchiveConfig {
 **Test Utilities**:
 ```typescript
 // Create single mock record
-createMockRecord(overrides?: Partial<CarnivalRecord>): CarnivalRecord
+createMockRecord(overrides?: Partial<CarnivalAct>): CarnivalAct
 
 // Create multiple mock records
-createMockRecords(count: number, overrides?): CarnivalRecord[]
+createMockRecords(count: number, overrides?): CarnivalAct[]
 
 // Verify calls
 mock.getCalls(): MethodCall[]
@@ -203,7 +203,7 @@ All methods return Promises for database compatibility:
 
 ```typescript
 // Even though InMemoryArchive is synchronous internally
-async create(record: CarnivalRecord): Promise<CarnivalRecord> {
+async create(record: CarnivalAct): Promise<CarnivalAct> {
   // Synchronous operations wrapped in Promise
 }
 ```
@@ -247,7 +247,7 @@ Some methods are optional (marked with `?`):
 
 ```typescript
 interface ArchiveInterface {
-  createIndex?(field: keyof CarnivalRecord): Promise<void>;
+  createIndex?(field: keyof CarnivalAct): Promise<void>;
   beginTransaction?(): Promise<ArchiveTransaction>;
 }
 ```
@@ -261,7 +261,7 @@ interface ArchiveInterface {
 Dedicated bulk methods for efficiency:
 
 ```typescript
-bulkCreate(records: CarnivalRecord[]): Promise<ArchiveBatchResult>
+bulkCreate(records: CarnivalAct[]): Promise<ArchiveBatchResult>
 ```
 
 **Rationale**: RxDB supports efficient bulk operations; interface should too.
@@ -289,7 +289,7 @@ export class ActService {
 
 ```typescript
 // OLD
-private acts: Map<string, CarnivalRecord> = new Map();
+private acts: Map<string, CarnivalAct> = new Map();
 
 // NEW
 private archive: ArchiveInterface;
@@ -299,14 +299,14 @@ private archive: ArchiveInterface;
 
 ```typescript
 // OLD
-createAct(params: CreateActParams): CarnivalRecord {
+createAct(params: CreateActParams): CarnivalAct {
   const record = {...};
   this.acts.set(record.id, record);
   return record;
 }
 
 // NEW
-async createAct(params: CreateActParams): Promise<CarnivalRecord> {
+async createAct(params: CreateActParams): Promise<CarnivalAct> {
   const record = {...};
   return await this.archive.create(record);
 }
@@ -381,7 +381,7 @@ When Phase 4 arrives, RxDB integration becomes:
 class RxDBArchive implements ArchiveInterface {
   constructor(private db: RxDatabase) {}
   
-  async create(record: CarnivalRecord): Promise<CarnivalRecord> {
+  async create(record: CarnivalAct): Promise<CarnivalAct> {
     const doc = await this.db.acts.insert(record);
     return doc.toJSON();
   }

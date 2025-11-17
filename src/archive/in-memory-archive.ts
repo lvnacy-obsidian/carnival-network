@@ -25,7 +25,7 @@ import type {
 	ArchiveQueryOptions,
 	ArchiveBatchResult,
 	ArchiveStats,
-	CarnivalRecord,
+	CarnivalAct,
 	LogContext
 } from '../types/public';
 
@@ -38,7 +38,7 @@ export class InMemoryArchive implements ArchiveInterface {
 	public readonly name = 'InMemoryArchive';
 	
 	// Main storage
-	private records: Map<string, CarnivalRecord> = new Map();
+	private acts: Map<string, CarnivalAct> = new Map();
 	
 	// Indexes for fast queries
 	private byTerritory: Map<string, Set<string>> = new Map();
@@ -56,22 +56,22 @@ export class InMemoryArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 	
-	async create(record: CarnivalRecord): Promise<CarnivalRecord> {
-		if (this.records.has(record.id)) {
-			throw new Error(`Record with ID ${record.id} already exists`);
+	async create(act: CarnivalAct): Promise<CarnivalAct> {
+		if (this.acts.has(act.id)) {
+			throw new Error(`Record with ID ${ act.id } already exists`);
 		}
 		
-		this.records.set(record.id, record);
-		this.updateIndexes(record);
+		this.acts.set(act.id, act);
+		this.updateIndexes(act);
 		
-		return await Promise.resolve(record);
+		return await Promise.resolve(act);
 	}
 	
-	async findById(id: string): Promise<CarnivalRecord | null> {
-		return await Promise.resolve(this.records.get(id) ?? null);
+	async findById(id: string): Promise<CarnivalAct | null> {
+		return await Promise.resolve(this.acts.get(id) ?? null);
 	}
 	
-	async find(query: ArchiveQueryOptions): Promise<CarnivalRecord[]> {
+	async find(query: ArchiveQueryOptions): Promise<CarnivalAct[]> {
 		let candidateIds: Set<string> | null = null;
 		
 		// Use indexes to narrow down candidates
@@ -91,15 +91,15 @@ export class InMemoryArchive implements ArchiveInterface {
 			candidateIds = this.intersect(candidateIds, this.byPerformer.get(query.performerId));
 		}
 		
-		// If no indexes matched, use all records
-		candidateIds ??= new Set(this.records.keys());
+		// If no indexes matched, use all acts
+		candidateIds ??= new Set(this.acts.keys());
 		
 		// Filter candidates
-		let results: CarnivalRecord[] = [];
+		let results: CarnivalAct[] = [];
 		for (const id of candidateIds) {
-			const record = this.records.get(id);
-			if (record && this.matchesQuery(record, query)) {
-				results.push(record);
+			const act = this.acts.get(id);
+			if (act && this.matchesQuery(act, query)) {
+				results.push(act);
 			}
 		}
 		
@@ -120,13 +120,13 @@ export class InMemoryArchive implements ArchiveInterface {
 		return await Promise.resolve(results.slice(offset, offset + limit));
 	}
 	
-	async findOne(query: ArchiveQueryOptions): Promise<CarnivalRecord | null> {
+	async findOne(query: ArchiveQueryOptions): Promise<CarnivalAct | null> {
 		const results = await this.find({ ...query, limit: 1 });
 		return results[0] ?? null;
 	}
 	
-	async update(id: string, updates: Partial<CarnivalRecord>): Promise<CarnivalRecord | null> {
-		const existing = this.records.get(id);
+	async update(id: string, updates: Partial<CarnivalAct>): Promise<CarnivalAct | null> {
+		const existing = this.acts.get(id);
 		if (!existing) {
 			return null;
 		}
@@ -135,27 +135,27 @@ export class InMemoryArchive implements ArchiveInterface {
 		this.removeFromIndexes(existing);
 		
 		// Apply updates
-		const updated: CarnivalRecord = {
+		const updated: CarnivalAct = {
 			...existing,
 			...updates,
 			id: existing.id, // Prevent ID changes
 			updatedAt: new Date().toISOString()
 		};
 		
-		this.records.set(id, updated);
+		this.acts.set(id, updated);
 		this.updateIndexes(updated);
 		
 		return await Promise.resolve(updated);
 	}
 	
 	async delete(id: string): Promise<boolean> {
-		const record = this.records.get(id);
-		if (!record) {
+		const act = this.acts.get(id);
+		if (!act) {
 			return false;
 		}
 		
-		this.records.delete(id);
-		this.removeFromIndexes(record);
+		this.acts.delete(id);
+		this.removeFromIndexes(act);
 		
 		return await Promise.resolve(true);
 	}
@@ -172,11 +172,11 @@ export class InMemoryArchive implements ArchiveInterface {
 	}
 	
 	async exists(id: string): Promise<boolean> {
-		return await Promise.resolve(this.records.has(id));
+		return await Promise.resolve(this.acts.has(id));
 	}
 	
-	async all(): Promise<CarnivalRecord[]> {
-		return await Promise.resolve(Array.from(this.records.values()));
+	async all(): Promise<CarnivalAct[]> {
+		return await Promise.resolve(Array.from(this.acts.values()));
 	}
 	
 	/**
@@ -185,19 +185,19 @@ export class InMemoryArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 	
-	async bulkCreate(records: CarnivalRecord[]): Promise<ArchiveBatchResult> {
+	async bulkCreate(acts: CarnivalAct[]): Promise<ArchiveBatchResult> {
 		const result: ArchiveBatchResult = {
 			successful: [],
 			failed: []
 		};
 		
-		for (const record of records) {
+		for (const act of acts) {
 			try {
-				await this.create(record);
-				result.successful.push(record.id);
+				await this.create(act);
+				result.successful.push(act.id);
 			} catch (error) {
 				result.failed.push({
-					id: record.id,
+					id: act.id,
 					error: error instanceof Error ? error.message : String(error)
 				});
 			}
@@ -207,16 +207,16 @@ export class InMemoryArchive implements ArchiveInterface {
 	}
 	
 	async bulkUpdate(
-		updates: Array<{ id: string; updates: Partial<CarnivalRecord> }>
+		updates: Array<{ id: string; updates: Partial<CarnivalAct> }>
 	): Promise<ArchiveBatchResult> {
 		const result: ArchiveBatchResult = {
 			successful: [],
 			failed: []
 		};
 		
-		for (const { id, updates: recordUpdates } of updates) {
+		for (const { id, updates: actUpdates } of updates) {
 			try {
-				const updated = await this.update(id, recordUpdates);
+				const updated = await this.update(id, actUpdates);
 				if (updated) {
 					result.successful.push(id);
 				} else {
@@ -264,13 +264,13 @@ export class InMemoryArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 	
-	async createIndex(field: keyof CarnivalRecord): Promise<void> {
+	async createIndex(field: keyof CarnivalAct): Promise<void> {
 		await Promise.resolve();
 		// Indexes are automatically maintained
 		Log.log(archiveLogger, `Index on ${String(field)} is automatically maintained`);
 	}
 	
-	async dropIndex(field: keyof CarnivalRecord): Promise<void> {
+	async dropIndex(field: keyof CarnivalAct): Promise<void> {
 		await Promise.resolve();
 		// Cannot drop core indexes
 		Log.warn(archiveLogger, `Cannot drop index on ${String(field)} - automatically maintained`);
@@ -286,12 +286,12 @@ export class InMemoryArchive implements ArchiveInterface {
 		this.byPerformer.clear();
 		this.byStatus.clear();
 		
-		// Rebuild from records
-		for (const record of this.records.values()) {
-			this.updateIndexes(record);
+		// Rebuild from acts
+		for (const act of this.acts.values()) {
+			this.updateIndexes(act);
 		}
 		
-		Log.log(archiveLogger, `✅ Rebuilt indexes for ${this.records.size} records`);
+		Log.log(archiveLogger, `✅ Rebuilt indexes for ${this.acts.size} acts`);
 	}
 	
 	/**
@@ -301,35 +301,35 @@ export class InMemoryArchive implements ArchiveInterface {
 	 */
 	
 	async stats(): Promise<ArchiveStats> {
-		const records = Array.from(this.records.values());
+		const acts = Array.from(this.acts.values());
 		
-		const recordsByTerritory: Record<string, number> = {};
-		const recordsByType: Record<string, number> = {};
+		const actsByTerritory: Record<string, number> = {};
+		const actsByType: Record<string, number> = {};
 		let oldest = Infinity;
 		let newest = 0;
 		
-		for (const record of records) {
+		for (const act of acts) {
 			// Territory count
-			recordsByTerritory[record.territory] = (recordsByTerritory[record.territory] ?? 0) + 1;
+			actsByTerritory[act.territory] = (actsByTerritory[act.territory] ?? 0) + 1;
 			
 			// Type count
-			recordsByType[record.actType] = (recordsByType[record.actType] ?? 0) + 1;
+			actsByType[act.actType] = (actsByType[act.actType] ?? 0) + 1;
 			
 			// Age tracking
-			const created = new Date(record.createdAt).getTime();
+			const created = new Date(act.createdAt).getTime();
 			oldest = Math.min(oldest, created);
 			newest = Math.max(newest, created);
 		}
 		
 		// Estimate storage size (rough)
-		const storageSize = records.reduce((total, record) => 
-			total + JSON.stringify(record).length, 0
+		const storageSize = acts.reduce((total, act) => 
+			total + JSON.stringify(act).length, 0
 		);
 		
 		return await Promise.resolve({
-			totalRecords: records.length,
-			recordsByTerritory,
-			recordsByType,
+			totalRecords: acts.length,
+			actsByTerritory,
+			actsByType,
 			oldestRecord: oldest !== Infinity ? new Date(oldest).toISOString() : undefined,
 			newestRecord: newest !== 0 ? new Date(newest).toISOString() : undefined,
 			storageSize
@@ -338,13 +338,13 @@ export class InMemoryArchive implements ArchiveInterface {
 	
 	async clear(): Promise<void> {
 		await Promise.resolve();
-		this.records.clear();
+		this.acts.clear();
 		this.byTerritory.clear();
 		this.byActType.clear();
 		this.byPerformer.clear();
 		this.byStatus.clear();
 		
-		Log.warn(archiveLogger, '🗑️ All records cleared');
+		Log.warn(archiveLogger, '🗑️ All acts cleared');
 	}
 	
 	async cleanup(): Promise<void> {
@@ -358,82 +358,82 @@ export class InMemoryArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 	
-	private updateIndexes(record: CarnivalRecord): void {
+	private updateIndexes(act: CarnivalAct): void {
 		// Territory index
-		if (!this.byTerritory.has(record.territory)) {
-			this.byTerritory.set(record.territory, new Set());
+		if (!this.byTerritory.has(act.territory)) {
+			this.byTerritory.set(act.territory, new Set());
 		}
-		const territorySet = this.byTerritory.get(record.territory);
+		const territorySet = this.byTerritory.get(act.territory);
 		if (territorySet) {
-			territorySet.add(record.id);
+			territorySet.add(act.id);
 		}
 		
 		// ActType index
-		if (!this.byActType.has(record.actType)) {
-			this.byActType.set(record.actType, new Set());
+		if (!this.byActType.has(act.actType)) {
+			this.byActType.set(act.actType, new Set());
 		}
-		const actTypeSet = this.byActType.get(record.actType);
+		const actTypeSet = this.byActType.get(act.actType);
 		if (actTypeSet) {
-			actTypeSet.add(record.id);
+			actTypeSet.add(act.id);
 		}
 		
 		// Status index
-		if (!this.byStatus.has(record.status)) {
-			this.byStatus.set(record.status, new Set());
+		if (!this.byStatus.has(act.status)) {
+			this.byStatus.set(act.status, new Set());
 		}
-		const statusSet = this.byStatus.get(record.status);
+		const statusSet = this.byStatus.get(act.status);
 		if (statusSet) {
-			statusSet.add(record.id);
+			statusSet.add(act.id);
 		}
 		
 		// Performer index
-		if (record.metadata.performerId) {
-			const performerId = String(record.metadata.performerId);
+		if (act.metadata.performerId) {
+			const performerId = String(act.metadata.performerId);
 			if (!this.byPerformer.has(performerId)) {
 				this.byPerformer.set(performerId, new Set());
 			}
 			const performerSet = this.byPerformer.get(performerId);
 			if (performerSet) {
-				performerSet.add(record.id);
+				performerSet.add(act.id);
 			}
 		}
 	}
 	
-	private removeFromIndexes(record: CarnivalRecord): void {
-		this.byTerritory.get(record.territory)?.delete(record.id);
-		this.byActType.get(record.actType)?.delete(record.id);
-		this.byStatus.get(record.status)?.delete(record.id);
+	private removeFromIndexes(act: CarnivalAct): void {
+		this.byTerritory.get(act.territory)?.delete(act.id);
+		this.byActType.get(act.actType)?.delete(act.id);
+		this.byStatus.get(act.status)?.delete(act.id);
 		
-		if (record.metadata.performerId) {
-			const performerId = String(record.metadata.performerId);
-			this.byPerformer.get(performerId)?.delete(record.id);
+		if (act.metadata.performerId) {
+			const performerId = String(act.metadata.performerId);
+			this.byPerformer.get(performerId)?.delete(act.id);
 		}
 	}
 	
-	private matchesQuery(record: CarnivalRecord, query: ArchiveQueryOptions): boolean {
+	private matchesQuery(act: CarnivalAct, query: ArchiveQueryOptions): boolean {
 		// Territory
-		if (query.territory && record.territory !== query.territory) {
+		if (query.territory && act.territory !== query.territory) {
 			return false;
 		}
 		
 		// ActType
-		if (query.actType && record.actType !== query.actType) {
+		if (query.actType && act.actType !== query.actType) {
 			return false;
 		}
 		
 		// Status
-		if (query.status && record.status !== query.status) {
+		if (query.status && act.status !== query.status) {
 			return false;
 		}
 		
 		// PerformerId
-		if (query.performerId && record.metadata.performerId !== query.performerId) {
+		if (query.performerId && act.metadata.performerId !== query.performerId) {
 			return false;
 		}
 		
 		// Date range
 		if (query.dateRange) {
-			const created = new Date(record.createdAt).getTime();
+			const created = new Date(act.createdAt).getTime();
 			const start = new Date(query.dateRange.start).getTime();
 			const end = new Date(query.dateRange.end).getTime();
 			
@@ -446,11 +446,11 @@ export class InMemoryArchive implements ArchiveInterface {
 	}
 	
 	private sortRecords(
-		records: CarnivalRecord[],
+		acts: CarnivalAct[],
 		sortBy: 'createdAt' | 'updatedAt' | 'title' | 'territory',
 		order: 'asc' | 'desc'
-	): CarnivalRecord[] {
-		return records.sort((a, b) => {
+	): CarnivalAct[] {
+		return acts.sort((a, b) => {
 			let comparison = 0;
 			
 			switch (sortBy) {

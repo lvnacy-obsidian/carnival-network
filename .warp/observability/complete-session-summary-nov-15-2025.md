@@ -36,7 +36,7 @@
 **Accomplishments**:
 - ✅ Designed CacheArchive: PersistentPerformerCache wrapper
 - ✅ Implemented full ArchiveInterface: CRUD, batch, queries, index management
-- ✅ Bidirectional Performer ↔ CarnivalRecord mapping
+- ✅ Bidirectional Performer ↔ CarnivalAct mapping
 - ✅ Created `src/archive/index.ts` for module exports
 - ✅ All code type-safe and linter-compliant
 
@@ -319,7 +319,7 @@ Benefits: Minimal bundle size, flexible architectures, future-proof
 
 2. **Optional: CacheArchive Unit Tests** (60-90 min)
    - Use MockArchive pattern
-   - Test Performer ↔ CarnivalRecord conversion
+   - Test Performer ↔ CarnivalAct conversion
    - Validate TTL expiration behavior
    - Performance benchmarking
 

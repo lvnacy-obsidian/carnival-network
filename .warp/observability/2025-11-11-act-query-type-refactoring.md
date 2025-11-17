@@ -124,7 +124,7 @@ export interface ExtendedActQueryOptions extends ActQueryOptions {
 
 ```typescript
 export interface PaginatedActResult {
-	acts: CarnivalRecord[];
+	acts: CarnivalAct[];
 	pagination: {
 		currentPage: number;
 		pageSize: number;
@@ -229,7 +229,7 @@ export interface PaginatedActResult { ... }
 // Other record types
 export interface ActCountOptions { ... }
 export interface ActSyncPreferences { ... }
-export interface CarnivalRecord { ... }
+export interface CarnivalAct { ... }
 export interface CreateActParams { ... }
 export interface RecordMetadata { ... }
 ```

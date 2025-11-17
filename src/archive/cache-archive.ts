@@ -4,14 +4,14 @@
  * ============================================================================
  * 
  * Wraps the PersistentPerformerCache with the ArchiveInterface contract.
- * Serves as a fallback storage layer that converts Performer records into
- * CarnivalRecord format for seamless integration with the archive abstraction.
+ * Serves as a fallback storage layer that converts Performer acts into
+ * CarnivalAct format for seamless integration with the archive abstraction.
  * 
  * Design Philosophy:
  * - Bridges cache layer to archive abstraction
  * - Provides graceful degradation when database is unavailable
  * - Minimal memory footprint (reuses existing performer cache)
- * - Converts between Performer and CarnivalRecord formats transparently
+ * - Converts between Performer and CarnivalAct formats transparently
  * 
  * Use Cases:
  * - Fallback storage when primary archive is unavailable
@@ -31,7 +31,7 @@ import type {
 	ArchiveQueryOptions,
 	ArchiveBatchResult,
 	ArchiveStats,
-	CarnivalRecord,
+	CarnivalAct,
 	LogContext,
 	Performer
 } from '../types/public';
@@ -43,11 +43,11 @@ const archiveLogger: LogContext = {
 };
 
 /**
- * Internal record wrapper combining Performer + metadata
+ * Internal act wrapper combining Performer + metadata
  */
 interface CacheRecord {
 	performer: Performer;
-	asRecord: CarnivalRecord;
+	asRecord: CarnivalAct;
 	createdAt: Date;
 }
 
@@ -57,9 +57,9 @@ interface CacheRecord {
 export class CacheArchive implements ArchiveInterface {
 	public readonly name = 'CacheArchive';
 
-	// In-memory mapping of carnival records (performer ID -> record)
-	// This layer exists because the cache stores Performers, but we need CarnivalRecords
-	private recordMap: Map<string, CacheRecord> = new Map();
+	// In-memory mapping of carnival acts (performer ID -> act)
+	// This layer exists because the cache stores Performers, but we need CarnivalActs
+	private actMap: Map<string, CacheRecord> = new Map();
 
 	constructor(private cache: PersistentPerformerCache) {
 		Log.log(archiveLogger, '🎭 CacheArchive initialized (fallback mode)');
@@ -71,50 +71,50 @@ export class CacheArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 
-	async create(record: CarnivalRecord): Promise<CarnivalRecord> {
-		if (this.recordMap.has(record.id)) {
-			throw new Error(`Record with ID ${record.id} already exists in cache archive`);
+	async create(act: CarnivalAct): Promise<CarnivalAct> {
+		if (this.actMap.has(act.id)) {
+			throw new Error(`Record with ID ${ act.id } already exists in cache archive`);
 		}
 
-		// Create a synthetic Performer from the CarnivalRecord
+		// Create a synthetic Performer from the CarnivalAct
 		// This allows us to store arbitrary carnival data in the performer cache
 		const performer: Performer = {
-			id: record.id,
-			name: record.title,
-			territory: record.territory,
+			id: act.id,
+			name: act.title,
+			territory: act.territory,
 			lastSeen: new Date().toISOString(),
 			capabilities: ['cache-archive'],
-			status: record.status === 'active' ? 'active' : 'inactive',
+			status: act.status === 'active' ? 'active' : 'inactive',
 			metadata: {
 				endpoint: '',
 				capabilities: ['cache-archive'],
 				custom: {
-					actType: record.actType,
-					content: record.content,
-					syncPreferences: record.syncPreferences,
-					originalMetadata: record.metadata
+					actType: act.actType,
+					content: act.content,
+					syncPreferences: act.syncPreferences,
+					originalMetadata: act.metadata
 				}
 			}
 		};
 
 		// Store in cache
-		this.cache.set(record.id, performer);
-		this.recordMap.set(record.id, {
+		this.cache.set(act.id, performer);
+		this.actMap.set(act.id, {
 			performer,
-			asRecord: record,
+			asRecord: act,
 			createdAt: new Date()
 		});
 
 		Log.log(
 			archiveLogger,
-			`✅ Created record ${record.id} in cache archive (territory: ${record.territory})`
+			`✅ Created act ${ act.id } in cache archive (territory: ${ act.territory })`
 		);
 
-		return await Promise.resolve(record);
+		return await Promise.resolve(act);
 	}
 
-	async findById(id: string): Promise<CarnivalRecord | null> {
-		const cached = this.recordMap.get(id);
+	async findById(id: string): Promise<CarnivalAct | null> {
+		const cached = this.actMap.get(id);
 		if (cached) {
 			return await Promise.resolve(cached.asRecord);
 		}
@@ -122,23 +122,23 @@ export class CacheArchive implements ArchiveInterface {
 		// Try to retrieve from performer cache
 		const performer = this.cache.get(id);
 		if (performer) {
-			const record = this.performerToCarnivalRecord(performer);
-			this.recordMap.set(id, {
+			const act = this.performerToCarnivalAct(performer);
+			this.actMap.set(id, {
 				performer,
-				asRecord: record,
+				asRecord: act,
 				createdAt: new Date()
 			});
-			return await Promise.resolve(record);
+			return await Promise.resolve(act);
 		}
 
 		return await Promise.resolve(null);
 	}
 
-	async find(query: ArchiveQueryOptions): Promise<CarnivalRecord[]> {
-		const results: CarnivalRecord[] = [];
+	async find(query: ArchiveQueryOptions): Promise<CarnivalAct[]> {
+		const results: CarnivalAct[] = [];
 
-		// Iterate through cached records and apply filters
-		for (const cacheRecord of this.recordMap.values()) {
+		// Iterate through cached acts and apply filters
+		for (const cacheRecord of this.actMap.values()) {
 			if (this.matchesQuery(cacheRecord.asRecord, query)) {
 				results.push(cacheRecord.asRecord);
 			}
@@ -162,18 +162,18 @@ export class CacheArchive implements ArchiveInterface {
 		return await Promise.resolve(results);
 	}
 
-	async findOne(query: ArchiveQueryOptions): Promise<CarnivalRecord | null> {
+	async findOne(query: ArchiveQueryOptions): Promise<CarnivalAct | null> {
 		const results = await this.find({ ...query, limit: 1 });
 		return await Promise.resolve(results[0] ?? null);
 	}
 
-	async update(id: string, updates: Partial<CarnivalRecord>): Promise<CarnivalRecord | null> {
-		const cached = this.recordMap.get(id);
+	async update(id: string, updates: Partial<CarnivalAct>): Promise<CarnivalAct | null> {
+		const cached = this.actMap.get(id);
 		if (!cached) {
 			return await Promise.resolve(null);
 		}
 
-		const updated: CarnivalRecord = {
+		const updated: CarnivalAct = {
 			...cached.asRecord,
 			...updates,
 			id: cached.asRecord.id, // Prevent ID changes
@@ -189,26 +189,26 @@ export class CacheArchive implements ArchiveInterface {
 		};
 
 		this.cache.set(id, updatedPerformer);
-		this.recordMap.set(id, {
+		this.actMap.set(id, {
 			performer: updatedPerformer,
 			asRecord: updated,
 			createdAt: cached.createdAt
 		});
 
-		Log.log(archiveLogger, `✏️ Updated record ${id} in cache archive`);
+		Log.log(archiveLogger, `✏️ Updated act ${id} in cache archive`);
 
 		return await Promise.resolve(updated);
 	}
 
 	async delete(id: string): Promise<boolean> {
-		if (!this.recordMap.has(id)) {
+		if (!this.actMap.has(id)) {
 			return await Promise.resolve(false);
 		}
 
 		this.cache.delete(id);
-		this.recordMap.delete(id);
+		this.actMap.delete(id);
 
-		Log.log(archiveLogger, `🗑️ Deleted record ${id} from cache archive`);
+		Log.log(archiveLogger, `🗑️ Deleted act ${id} from cache archive`);
 
 		return await Promise.resolve(true);
 	}
@@ -225,11 +225,11 @@ export class CacheArchive implements ArchiveInterface {
 	}
 
 	async exists(id: string): Promise<boolean> {
-		const exists = this.recordMap.has(id) || this.cache.get(id) !== null;
+		const exists = this.actMap.has(id) || this.cache.get(id) !== null;
 		return await Promise.resolve(exists);
 	}
 
-	async all(): Promise<CarnivalRecord[]> {
+	async all(): Promise<CarnivalAct[]> {
 		return await this.find({});
 	}
 
@@ -239,19 +239,19 @@ export class CacheArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 
-	async bulkCreate(records: CarnivalRecord[]): Promise<ArchiveBatchResult> {
+	async bulkCreate(acts: CarnivalAct[]): Promise<ArchiveBatchResult> {
 		const result: ArchiveBatchResult = {
 			successful: [],
 			failed: []
 		};
 
-		for (const record of records) {
+		for (const act of acts) {
 			try {
-				await this.create(record);
-				result.successful.push(record.id);
+				await this.create(act);
+				result.successful.push(act.id);
 			} catch (error) {
 				result.failed.push({
-					id: record.id,
+					id: act.id,
 					error: error instanceof Error ? error.message : 'Unknown error'
 				});
 			}
@@ -261,16 +261,16 @@ export class CacheArchive implements ArchiveInterface {
 	}
 
 	async bulkUpdate(
-		updates: Array<{ id: string; updates: Partial<CarnivalRecord> }>
+		updates: Array<{ id: string; updates: Partial<CarnivalAct> }>
 	): Promise<ArchiveBatchResult> {
 		const result: ArchiveBatchResult = {
 			successful: [],
 			failed: []
 		};
 
-		for (const { id, updates: recordUpdates } of updates) {
+		for (const { id, updates: actUpdates } of updates) {
 			try {
-				const updated = await this.update(id, recordUpdates);
+				const updated = await this.update(id, actUpdates);
 				if (updated) {
 					result.successful.push(id);
 				} else {
@@ -347,38 +347,38 @@ export class CacheArchive implements ArchiveInterface {
 	 */
 
 	async stats(): Promise<ArchiveStats> {
-		const records = Array.from(this.recordMap.values());
+		const acts = Array.from(this.actMap.values());
 		const byTerritory: Record<string, number> = {};
 		const byType: Record<string, number> = {};
 
-		for (const cacheRecord of records) {
-			const record = cacheRecord.asRecord;
-			byTerritory[record.territory] = (byTerritory[record.territory] ?? 0) + 1;
-			byType[record.actType] = (byType[record.actType] ?? 0) + 1;
+		for (const cacheRecord of acts) {
+			const act = cacheRecord.asRecord;
+			byTerritory[act.territory] = (byTerritory[act.territory] ?? 0) + 1;
+			byType[act.actType] = (byType[act.actType] ?? 0) + 1;
 		}
 
 		const stats: ArchiveStats = {
-			totalRecords: records.length,
-			recordsByTerritory: byTerritory,
-			recordsByType: byType,
-			oldestRecord: records.length > 0 ? records[0].asRecord.createdAt : undefined,
+			totalRecords: acts.length,
+			actsByTerritory: byTerritory,
+			actsByType: byType,
+			oldestRecord: acts.length > 0 ? acts[0].asRecord.createdAt : undefined,
 			newestRecord:
-				records.length > 0 ? records[records.length - 1].asRecord.createdAt : undefined
+				acts.length > 0 ? acts[acts.length - 1].asRecord.createdAt : undefined
 		};
 
 		return await Promise.resolve(stats);
 	}
 
 	async clear(): Promise<void> {
-		for (const id of this.recordMap.keys()) {
+		for (const id of this.actMap.keys()) {
 			await this.delete(id);
 		}
-		Log.log(archiveLogger, '🧹 Cleared all records from cache archive');
+		Log.log(archiveLogger, '🧹 Cleared all acts from cache archive');
 		return await Promise.resolve();
 	}
 
 	async cleanup(): Promise<void> {
-		// Expired records are auto-cleaned by the underlying cache
+		// Expired acts are auto-cleaned by the underlying cache
 		Log.log(archiveLogger, '🧹 Cache archive cleanup (delegated to underlying cache)');
 		return await Promise.resolve();
 	}
@@ -390,9 +390,9 @@ export class CacheArchive implements ArchiveInterface {
 	 */
 
 	/**
-	 * Convert Performer to CarnivalRecord
+	 * Convert Performer to CarnivalAct
 	 */
-	private performerToCarnivalRecord(performer: Performer): CarnivalRecord {
+	private performerToCarnivalAct(performer: Performer): CarnivalAct {
 		const custom = performer.metadata.custom ?? {};
 		return {
 			id: performer.id,
@@ -418,33 +418,33 @@ export class CacheArchive implements ArchiveInterface {
 	}
 
 	/**
-	 * Check if record matches query criteria
+	 * Check if act matches query criteria
 	 */
-	private matchesQuery(record: CarnivalRecord, query: ArchiveQueryOptions): boolean {
-		if (query.territory && record.territory !== query.territory) {
+	private matchesQuery(act: CarnivalAct, query: ArchiveQueryOptions): boolean {
+		if (query.territory && act.territory !== query.territory) {
 			return false;
 		}
-		if (query.actType && record.actType !== query.actType) {
+		if (query.actType && act.actType !== query.actType) {
 			return false;
 		}
-		if (query.status && record.status !== query.status) {
+		if (query.status && act.status !== query.status) {
 			return false;
 		}
-		if (query.performerId && record.id !== query.performerId) {
+		if (query.performerId && act.id !== query.performerId) {
 			return false;
 		}
 		return true;
 	}
 
 	/**
-	 * Sort records in-place
+	 * Sort acts in-place
 	 */
 	private sortRecords(
-		records: CarnivalRecord[],
+		acts: CarnivalAct[],
 		sortBy: 'createdAt' | 'updatedAt' | 'title' | 'territory',
 		order: 'asc' | 'desc'
 	): void {
-		records.sort((a, b) => {
+		acts.sort((a, b) => {
 			let comparison = 0;
 
 			switch (sortBy) {

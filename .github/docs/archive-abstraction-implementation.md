@@ -203,15 +203,15 @@ const records = createMockRecords(10, {
 **Before**:
 ```typescript
 export class ActService {
-  private acts: Map<string, CarnivalRecord> = new Map();
+  private acts: Map<string, CarnivalAct> = new Map();
   
-  createAct(params: CreateActParams): CarnivalRecord {
+  createAct(params: CreateActParams): CarnivalAct {
     const record = { /* ... */ };
     this.acts.set(record.id, record);
     return record;
   }
   
-  queryActs(options: ActQueryOptions): CarnivalRecord[] {
+  queryActs(options: ActQueryOptions): CarnivalAct[] {
     const acts = Array.from(this.acts.values());
     // Filter and return...
   }
@@ -232,12 +232,12 @@ export class ActService {
     this.archive = archive ?? new InMemoryArchive();
   }
   
-  async createAct(params: CreateActParams): Promise<CarnivalRecord> {
+  async createAct(params: CreateActParams): Promise<CarnivalAct> {
     const record = { /* ... */ };
     return await this.archive.create(record);
   }
   
-  async queryActs(options: ActQueryOptions): Promise<CarnivalRecord[]> {
+  async queryActs(options: ActQueryOptions): Promise<CarnivalAct[]> {
     return await this.archive.find(options);
   }
 }
@@ -248,10 +248,10 @@ export class ActService {
 **Convert sync → async**:
 ```typescript
 // Before
-queryActs(options: ActQueryOptions): CarnivalRecord[]
+queryActs(options: ActQueryOptions): CarnivalAct[]
 
 // After
-async queryActs(options: ActQueryOptions): Promise<CarnivalRecord[]>
+async queryActs(options: ActQueryOptions): Promise<CarnivalAct[]>
 ```
 
 ### Step 3: Update Callers

@@ -12,7 +12,7 @@
 1. **`src/archive/cache-archive.ts`** (475 lines)
    - CacheArchive implementation wrapping PersistentPerformerCache
    - Full ArchiveInterface implementation
-   - Bidirectional Performer ↔ CarnivalRecord mapping
+   - Bidirectional Performer ↔ CarnivalAct mapping
    - Graceful degradation fallback layer
 
 2. **`src/archive/index.ts`** (10 lines)

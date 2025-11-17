@@ -4,6 +4,20 @@
  */
 
 /**
+ * Carnival Records exports
+ * - ActCountOptions
+ * - ActCreateData
+ * - ActQueryOptions
+ * - ActSyncPreferences
+ * - CarnivalAct
+ * - CreateActParams
+ * - ExtendedActQueryOptions
+ * - PaginatedActResult
+ * - RecordMetadata
+ */
+export * from './acts-types';
+
+/**
  * Analytics exports
  * - ActivityAnalytics
  * - AnalyticsData
@@ -21,15 +35,23 @@
 export * from './analytics-types';
 
 /**
- * API Requst Types
+ * API Request exports
+ * - ActCreateBody
+ * - ActCreateRequestBody
  * - APIRequest
  * - AuthenticatedRequest
  * - AuthenticationRequestBody
- * - ActCreateRequestBody
  * - FetchOptions
  * - SearchRequestOptions
  */
 export * from './api-request-types';
+
+/**
+ * API Response exports
+ * - APIResponse
+ * - PaginationMeta
+ */
+export * from './api-response-types';
 
 /**
  * Obsidian Plugin Filler exports
@@ -71,6 +93,7 @@ export * from './carnival-configuration-types';
  * - RegistryEntry
  * - Territory
  * - TerritoryDiscoveryOptions
+ * - TerritoryInfo
  */
 export * from './carnival-grounds-types';
 
@@ -142,19 +165,6 @@ export * from './observability-types';
  * - QueryResult
  */
 export * from './query-types';
-
-/**
- * Carnival Records exports
- * - ActCountOptions
- * - ActQueryOptions
- * - ActSyncPreferences
- * - CarnivalRecord
- * - CreateActParams
- * - ExtendedActQueryOptions
- * - PaginatedActResult
- * - RecordMetadata
- */
-export * from './records-types';
 
 /**
  * Search exports

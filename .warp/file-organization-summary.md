@@ -13,7 +13,7 @@
 - **`src/types/index.ts`** ✅ COMPLETE
   - Public API types with carnival terminology
   - `CarnivalNetworkClientInterface` interface
-  - `CarnivalConfig`, `CarnivalRecord`, `RegistryEntry`
+  - `CarnivalConfig`, `CarnivalAct`, `RegistryEntry`
   - Service interfaces: `TerritoryServiceInterface`, `QueryServiceInterface`, `ActServiceInterface`
   
 - **`src/types/internal.ts`** ✅ COMPLETE
@@ -41,7 +41,7 @@ These files exist but need carnival theme applied:
 1. **`src/network/services/record-service.ts`** → **`act-service.ts`**
    - Rename class: `RecordService` → `ActService`
    - Update method names: `createRecord()` → `createAct()`, etc.
-   - Update type imports: `CrossVaultRecord` → `CarnivalRecord`
+   - Update type imports: `CrossVaultRecord` → `CarnivalAct`
 
 2. **`src/network/services/registry-access-service.ts`** → **`territory-access-service.ts`**
    - Rename class: `RegistryAccessService` → `TerritoryAccessService`
@@ -100,7 +100,7 @@ Need to genericize and add carnival theme:
 2. **`src/network/handlers/discord-handlers.ts`** → **`discord-webhook-handler.ts`**
    - Implement `IWebhookHandler`
    - Rename: `DiscordHandlers` → `DiscordWebhookHandler`
-   - Update to work with `CarnivalRecord`
+   - Update to work with `CarnivalAct`
 
 3. **`src/network/handlers/auth-handlers.ts`**
    - Update type imports

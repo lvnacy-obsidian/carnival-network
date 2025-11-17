@@ -18,11 +18,11 @@ import type {
 	ArchiveQueryOptions,
 	ArchiveBatchResult,
 	ArchiveStats,
-	CarnivalRecord
+	CarnivalAct
 } from '../src/types/public';
 
 /**
- * Method call record for testing verification
+ * Method call act for testing verification
  */
 export interface MethodCall {
 	method: string;
@@ -55,7 +55,7 @@ export class MockArchive implements ArchiveInterface {
 	public readonly name = 'MockArchive';
 	
 	// Test data
-	private data: Map<string, CarnivalRecord> = new Map();
+	private data: Map<string, CarnivalAct> = new Map();
 	
 	// Call tracking
 	private calls: MethodCall[] = [];
@@ -105,16 +105,16 @@ export class MockArchive implements ArchiveInterface {
 	/**
 	 * Seed test data
 	 */
-	seed(records: CarnivalRecord[]): void {
-		for (const record of records) {
-			this.data.set(record.id, record);
+	seed(acts: CarnivalAct[]): void {
+		for (const act of acts) {
+			this.data.set(act.id, act);
 		}
 	}
 	
 	/**
 	 * Get internal data for verification
 	 */
-	getData(): CarnivalRecord[] {
+	getData(): CarnivalAct[] {
 		return Array.from(this.data.values());
 	}
 	
@@ -124,8 +124,8 @@ export class MockArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 	
-	async create(record: CarnivalRecord): Promise<CarnivalRecord> {
-		this.recordCall('create', [record]);
+	async create(act: CarnivalAct): Promise<CarnivalAct> {
+		this.actCall('create', [act]);
 		
 		if (this.config.throwOn?.create) {
 			throw this.config.throwOn.create;
@@ -133,16 +133,16 @@ export class MockArchive implements ArchiveInterface {
 		
 		await this.simulateLatency();
 		
-		if (this.data.has(record.id)) {
-			throw new Error(`Record ${record.id} already exists`);
+		if (this.data.has(act.id)) {
+			throw new Error(`Record ${act.id} already exists`);
 		}
 		
-		this.data.set(record.id, record);
-		return record;
+		this.data.set(act.id, act);
+		return act;
 	}
 	
-	async findById(id: string): Promise<CarnivalRecord | null> {
-		this.recordCall('findById', [id]);
+	async findById(id: string): Promise<CarnivalAct | null> {
+		this.actCall('findById', [id]);
 		
 		if (this.config.throwOn?.findById) {
 			throw this.config.throwOn.findById;
@@ -157,8 +157,8 @@ export class MockArchive implements ArchiveInterface {
 		return this.data.get(id) ?? null;
 	}
 	
-	async find(query: ArchiveQueryOptions): Promise<CarnivalRecord[]> {
-		this.recordCall('find', [query]);
+	async find(query: ArchiveQueryOptions): Promise<CarnivalAct[]> {
+		this.actCall('find', [query]);
 		
 		if (this.config.throwOn?.find) {
 			throw this.config.throwOn.find;
@@ -170,16 +170,16 @@ export class MockArchive implements ArchiveInterface {
 		return Array.from(this.data.values());
 	}
 	
-	async findOne(query: ArchiveQueryOptions): Promise<CarnivalRecord | null> {
-		this.recordCall('findOne', [query]);
+	async findOne(query: ArchiveQueryOptions): Promise<CarnivalAct | null> {
+		this.actCall('findOne', [query]);
 		await this.simulateLatency();
 		
 		const results = await this.find(query);
 		return results[0] ?? null;
 	}
 	
-	async update(id: string, updates: Partial<CarnivalRecord>): Promise<CarnivalRecord | null> {
-		this.recordCall('update', [id, updates]);
+	async update(id: string, updates: Partial<CarnivalAct>): Promise<CarnivalAct | null> {
+		this.actCall('update', [id, updates]);
 		
 		if (this.config.throwOn?.update) {
 			throw this.config.throwOn.update;
@@ -198,7 +198,7 @@ export class MockArchive implements ArchiveInterface {
 	}
 	
 	async delete(id: string): Promise<boolean> {
-		this.recordCall('delete', [id]);
+		this.actCall('delete', [id]);
 		
 		if (this.config.throwOn?.delete) {
 			throw this.config.throwOn.delete;
@@ -210,7 +210,7 @@ export class MockArchive implements ArchiveInterface {
 	}
 	
 	async count(query: ArchiveQueryOptions): Promise<number> {
-		this.recordCall('count', [query]);
+		this.actCall('count', [query]);
 		await this.simulateLatency();
 		
 		const results = await this.find(query);
@@ -218,21 +218,21 @@ export class MockArchive implements ArchiveInterface {
 	}
 	
 	async exists(id: string): Promise<boolean> {
-		this.recordCall('exists', [id]);
+		this.actCall('exists', [id]);
 		await this.simulateLatency();
 		
 		return this.data.has(id);
 	}
 	
-	async all(): Promise<CarnivalRecord[]> {
-		this.recordCall('all', []);
+	async all(): Promise<CarnivalAct[]> {
+		this.actCall('all', []);
 		await this.simulateLatency();
 		
 		return Array.from(this.data.values());
 	}
 	
-	async bulkCreate(records: CarnivalRecord[]): Promise<ArchiveBatchResult> {
-		this.recordCall('bulkCreate', [records]);
+	async bulkCreate(acts: CarnivalAct[]): Promise<ArchiveBatchResult> {
+		this.actCall('bulkCreate', [acts]);
 		await this.simulateLatency();
 		
 		const result: ArchiveBatchResult = {
@@ -240,13 +240,13 @@ export class MockArchive implements ArchiveInterface {
 			failed: []
 		};
 		
-		for (const record of records) {
+		for (const act of acts) {
 			try {
-				await this.create(record);
-				result.successful.push(record.id);
+				await this.create(act);
+				result.successful.push(act.id);
 			} catch (error) {
 				result.failed.push({
-					id: record.id,
+					id: act.id,
 					error: error instanceof Error ? error.message : String(error)
 				});
 			}
@@ -256,9 +256,9 @@ export class MockArchive implements ArchiveInterface {
 	}
 	
 	async bulkUpdate(
-		updates: Array<{ id: string; updates: Partial<CarnivalRecord> }>
+		updates: Array<{ id: string; updates: Partial<CarnivalAct> }>
 	): Promise<ArchiveBatchResult> {
-		this.recordCall('bulkUpdate', [updates]);
+		this.actCall('bulkUpdate', [updates]);
 		await this.simulateLatency();
 		
 		const result: ArchiveBatchResult = {
@@ -266,9 +266,9 @@ export class MockArchive implements ArchiveInterface {
 			failed: []
 		};
 		
-		for (const { id, updates: recordUpdates } of updates) {
+		for (const { id, updates: actUpdates } of updates) {
 			try {
-				const updated = await this.update(id, recordUpdates);
+				const updated = await this.update(id, actUpdates);
 				if (updated) {
 					result.successful.push(id);
 				} else {
@@ -286,7 +286,7 @@ export class MockArchive implements ArchiveInterface {
 	}
 	
 	async bulkDelete(ids: string[]): Promise<ArchiveBatchResult> {
-		this.recordCall('bulkDelete', [ids]);
+		this.actCall('bulkDelete', [ids]);
 		await this.simulateLatency();
 		
 		const result: ArchiveBatchResult = {
@@ -314,25 +314,25 @@ export class MockArchive implements ArchiveInterface {
 	}
 	
 	async stats(): Promise<ArchiveStats> {
-		this.recordCall('stats', []);
+		this.actCall('stats', []);
 		await this.simulateLatency();
 		
 		return {
 			totalRecords: this.data.size,
-			recordsByTerritory: {},
-			recordsByType: {}
+			actsByTerritory: {},
+			actsByType: {}
 		};
 	}
 	
 	async clear(): Promise<void> {
-		this.recordCall('clear', []);
+		this.actCall('clear', []);
 		await this.simulateLatency();
 		
 		this.data.clear();
 	}
 	
 	async cleanup(): Promise<void> {
-		this.recordCall('cleanup', []);
+		this.actCall('cleanup', []);
 		await this.simulateLatency();
 		
 		this.data.clear();
@@ -344,7 +344,7 @@ export class MockArchive implements ArchiveInterface {
 	 * ========================================================================
 	 */
 	
-	private recordCall(method: string, args: unknown[]): void {
+	private actCall(method: string, args: unknown[]): void {
 		this.calls.push({
 			method,
 			args,
@@ -366,9 +366,9 @@ export class MockArchive implements ArchiveInterface {
  */
 
 /**
- * Create a mock record for testing
+ * Create a mock act for testing
  */
-export function createMockRecord(overrides?: Partial<CarnivalRecord>): CarnivalRecord {
+export function createMockRecord(overrides?: Partial<CarnivalAct>): CarnivalAct {
 	return {
 		id: `test-${Date.now()}`,
 		title: 'Test Record',
@@ -387,9 +387,9 @@ export function createMockRecord(overrides?: Partial<CarnivalRecord>): CarnivalR
 }
 
 /**
- * Create multiple mock records
+ * Create multiple mock acts
  */
-export function createMockRecords(count: number, overrides?: Partial<CarnivalRecord>): CarnivalRecord[] {
+export function createMockRecords(count: number, overrides?: Partial<CarnivalAct>): CarnivalAct[] {
 	return Array.from({ length: count }, (_, i) =>
 		createMockRecord({
 			id: `test-${i}`,

@@ -21,7 +21,7 @@
  * - WebhookResponse
  */
 
-import { CarnivalRecord } from './records-types';
+import { CarnivalAct } from './acts-types';
 
 export interface BeehiivPost {
 	id: string;
@@ -100,7 +100,7 @@ export interface GitHubWebhookPayload {
  */
 export interface WebhookHandlerInterface {
 	handleIncoming(payload: unknown): Promise<void>;
-	formatOutgoing(record: CarnivalRecord): unknown;
+	formatOutgoing(record: CarnivalAct): unknown;
 	verify(payload: unknown, signature: string): boolean;
 }
 

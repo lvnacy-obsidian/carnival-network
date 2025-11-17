@@ -7,7 +7,7 @@
 import {
 	ArchiveInterface,
 	ArchiveTransaction,
-	CarnivalRecord
+	CarnivalAct
 } from './public';
 
 /**
@@ -23,8 +23,8 @@ export function supportsTransactions(archive: ArchiveInterface): archive is Arch
  * Check if archive supports indexes
  */
 export function supportsIndexes(archive: ArchiveInterface): archive is ArchiveInterface & {
-	createIndex: (field: keyof CarnivalRecord, options?: unknown) => Promise<void>;
-	dropIndex: (field: keyof CarnivalRecord) => Promise<void>;
+	createIndex: (field: keyof CarnivalAct, options?: unknown) => Promise<void>;
+	dropIndex: (field: keyof CarnivalAct) => Promise<void>;
 	rebuildIndexes: () => Promise<void>;
 } {
 	return typeof archive.createIndex === 'function';

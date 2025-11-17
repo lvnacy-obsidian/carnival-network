@@ -16,7 +16,7 @@
 **Key Changes**:
 ```typescript
 // OLD: Direct Map storage
-private acts: Map<string, CarnivalRecord> = new Map();
+private acts: Map<string, CarnivalAct> = new Map();
 private actsByTerritory: Map<string, Set<string>> = new Map();
 // ... more indexes
 
@@ -311,10 +311,10 @@ All benchmarks passed ✅
 ```typescript
 // Methods now return Promises (async)
 // OLD
-createAct(params): CarnivalRecord
+createAct(params): CarnivalAct
 
 // NEW
-async createAct(params): Promise<CarnivalRecord>
+async createAct(params): Promise<CarnivalAct>
 ```
 
 **Caller Updates Required**:
@@ -363,7 +363,7 @@ When Phase 4 arrives:
 class RxDBArchive implements ArchiveInterface {
   constructor(private db: RxDatabase) {}
   
-  async create(record: CarnivalRecord): Promise<CarnivalRecord> {
+  async create(record: CarnivalAct): Promise<CarnivalAct> {
     const doc = await this.db.acts.insert(record);
     return doc.toJSON();
   }

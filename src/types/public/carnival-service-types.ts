@@ -21,9 +21,9 @@ import {
 import {
 	ActCountOptions,
 	ActQueryOptions,
-	CarnivalRecord,
+	CarnivalAct,
 	CreateActParams,
-} from './records-types';
+} from './acts-types';
 import {
 	SearchOptions,
 	SearchResult
@@ -33,13 +33,13 @@ import {
  * Act service interface - handles act (record) operations
  */
 export interface ActServiceInterface {
-	createAct(params: CreateActParams): Promise<CarnivalRecord>;
-	broadcastAct(record: CarnivalRecord): Promise<void>;
-	queryActs(options: ActQueryOptions): Promise<CarnivalRecord[]>;
+	createAct(params: CreateActParams): Promise<CarnivalAct>;
+	broadcastAct(record: CarnivalAct): Promise<void>;
+	queryActs(options: ActQueryOptions): Promise<CarnivalAct[]>;
 	countActs(options: ActCountOptions): Promise<number>;
 	performSearch(options: SearchOptions): Promise<SearchResult[]>;
 	generateActId(): string;
-	generateSummary(record: CarnivalRecord): string;
+	generateSummary(record: CarnivalAct): string;
 }
 
 /**

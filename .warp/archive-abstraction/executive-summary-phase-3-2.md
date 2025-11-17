@@ -89,9 +89,9 @@ Two complementary models for monitoring:
 Maps PersistentPerformerCache to ArchiveInterface:
 ```typescript
 // Stores carnival records in performer cache
-CarnivalRecord → Performer → Cache
+CarnivalAct → Performer → Cache
 // Retrieves with transparent conversion
-Performer → CarnivalRecord → Query Results
+Performer → CarnivalAct → Query Results
 ```
 
 **Use Cases**:

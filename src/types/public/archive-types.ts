@@ -3,7 +3,7 @@
  * ARCHIVE INTERFACE - Carnival Record Storage Contract
  * ============================================================================
  * 
- * The Archive is the carnival's tome of records - a storage abstraction that
+ * The Archive is the carnival's tome of acts - a storage abstraction that
  * enables swapping storage backends without changing business logic.
  * 
  * Design Philosophy:
@@ -29,11 +29,11 @@
  * const archive: ArchiveInterface = new InMemoryArchive();
  * 
  * // Create
- * await archive.create(record);
+ * await archive.create(act);
  * 
  * // Read
- * const record = await archive.findById('act-123');
- * const records = await archive.find({ territory: 'backstage' });
+ * const act = await archive.findById('act-123');
+ * const acts = await archive.find({ territory: 'backstage' });
  * 
  * // Update
  * await archive.update('act-123', { status: 'archived' });
@@ -43,7 +43,7 @@
  * ```
  */
 
-import type { CarnivalRecord } from './records-types';
+import type { CarnivalAct } from './acts-types';
 
 /**
  * Batch operation result
@@ -86,8 +86,8 @@ export interface ArchiveQueryOptions {
  */
 export interface ArchiveStats {
 	totalRecords: number;
-	recordsByTerritory: Record<string, number>;
-	recordsByType: Record<string, number>;
+	actsByTerritory: Record<string, number>;
+	actsByType: Record<string, number>;
 	oldestRecord?: string; // ISO timestamp
 	newestRecord?: string; // ISO timestamp
 	storageSize?: number;  // bytes (if available)
@@ -97,8 +97,8 @@ export interface ArchiveStats {
  * Transaction interface for atomic operations
  */
 export interface ArchiveTransaction {
-	create(record: CarnivalRecord): Promise<void>;
-	update(id: string, updates: Partial<CarnivalRecord>): Promise<void>;
+	create(act: CarnivalAct): Promise<void>;
+	update(id: string, updates: Partial<CarnivalAct>): Promise<void>;
 	delete(id: string): Promise<void>;
 	commit(): Promise<void>;
 	rollback(): Promise<void>;
@@ -127,37 +127,37 @@ export interface ArchiveInterface {
 	 */
 	
 	/**
-	 * Create a new record
-	 * @throws {Error} If record with same ID already exists
+	 * Create a new act
+	 * @throws {Error} If act with same ID already exists
 	 */
-	create(record: CarnivalRecord): Promise<CarnivalRecord>;
+	create(act: CarnivalAct): Promise<CarnivalAct>;
 	
 	/**
-	 * Find record by ID
+	 * Find act by ID
 	 * @returns Record or null if not found
 	 */
-	findById(id: string): Promise<CarnivalRecord | null>;
+	findById(id: string): Promise<CarnivalAct | null>;
 	
 	/**
-	 * Find multiple records by query
-	 * @returns Array of matching records
+	 * Find multiple acts by query
+	 * @returns Array of matching acts
 	 */
-	find(query: ArchiveQueryOptions): Promise<CarnivalRecord[]>;
+	find(query: ArchiveQueryOptions): Promise<CarnivalAct[]>;
 	
 	/**
-	 * Find one record by query
-	 * @returns First matching record or null
+	 * Find one act by query
+	 * @returns First matching act or null
 	 */
-	findOne(query: ArchiveQueryOptions): Promise<CarnivalRecord | null>;
+	findOne(query: ArchiveQueryOptions): Promise<CarnivalAct | null>;
 	
 	/**
-	 * Update a record
-	 * @returns Updated record or null if not found
+	 * Update a act
+	 * @returns Updated act or null if not found
 	 */
-	update(id: string, updates: Partial<CarnivalRecord>): Promise<CarnivalRecord | null>;
+	update(id: string, updates: Partial<CarnivalAct>): Promise<CarnivalAct | null>;
 	
 	/**
-	 * Delete a record
+	 * Delete a act
 	 * @returns true if deleted, false if not found
 	 */
 	delete(id: string): Promise<boolean>;
@@ -169,19 +169,19 @@ export interface ArchiveInterface {
 	 */
 	
 	/**
-	 * Count records matching query
+	 * Count acts matching query
 	 */
 	count(query: ArchiveQueryOptions): Promise<number>;
 	
 	/**
-	 * Check if record exists
+	 * Check if act exists
 	 */
 	exists(id: string): Promise<boolean>;
 	
 	/**
-	 * Get all records (use with caution on large datasets)
+	 * Get all acts (use with caution on large datasets)
 	 */
-	all(): Promise<CarnivalRecord[]>;
+	all(): Promise<CarnivalAct[]>;
 	
 	/**
 	 * ========================================================================
@@ -190,17 +190,17 @@ export interface ArchiveInterface {
 	 */
 	
 	/**
-	 * Create multiple records
+	 * Create multiple acts
 	 */
-	bulkCreate(records: CarnivalRecord[]): Promise<ArchiveBatchResult>;
+	bulkCreate(acts: CarnivalAct[]): Promise<ArchiveBatchResult>;
 	
 	/**
-	 * Update multiple records
+	 * Update multiple acts
 	 */
-	bulkUpdate(updates: Array<{ id: string; updates: Partial<CarnivalRecord> }>): Promise<ArchiveBatchResult>;
+	bulkUpdate(updates: Array<{ id: string; updates: Partial<CarnivalAct> }>): Promise<ArchiveBatchResult>;
 	
 	/**
-	 * Delete multiple records
+	 * Delete multiple acts
 	 */
 	bulkDelete(ids: string[]): Promise<ArchiveBatchResult>;
 	
@@ -215,7 +215,7 @@ export interface ArchiveInterface {
 	 * @param field Field name to index
 	 * @param options Index options (unique, sparse, etc.)
 	 */
-	createIndex?(field: keyof CarnivalRecord, options?: {
+	createIndex?(field: keyof CarnivalAct, options?: {
 		unique?: boolean;
 		sparse?: boolean;
 	}): Promise<void>;
@@ -223,7 +223,7 @@ export interface ArchiveInterface {
 	/**
 	 * Drop an index
 	 */
-	dropIndex?(field: keyof CarnivalRecord): Promise<void>;
+	dropIndex?(field: keyof CarnivalAct): Promise<void>;
 	
 	/**
 	 * Rebuild all indexes
@@ -254,7 +254,7 @@ export interface ArchiveInterface {
 	stats(): Promise<ArchiveStats>;
 	
 	/**
-	 * Clear all records
+	 * Clear all acts
 	 * USE WITH CAUTION
 	 */
 	clear(): Promise<void>;

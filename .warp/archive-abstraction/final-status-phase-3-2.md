@@ -50,7 +50,7 @@ Testing Coverage: ✅ PROVIDED (310-line testing guide)
 ### CacheArchive (New) - Fallback Storage
 - **Purpose**: Provides storage when primary archive unavailable
 - **Backing**: PersistentPerformerCache
-- **Mapping**: Performer ↔ CarnivalRecord conversion
+- **Mapping**: Performer ↔ CarnivalAct conversion
 - **Features**: Full ArchiveInterface (CRUD, batch, queries, indexes)
 - **Status**: ✅ Production-ready, type-safe, fully-tested
 

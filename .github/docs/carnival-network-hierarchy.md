@@ -182,7 +182,7 @@ interface RegistryEntry {
 
 **Technical Reality:**
 ```typescript
-interface CarnivalRecord {
+interface CarnivalAct {
   id: string;
   title: string;
   territory: string;
@@ -325,7 +325,7 @@ await carnivalRecordsClient.broadcastAct(record);
    └─> Returns: List of RegistryEntry objects
 
 5. Performer creates and broadcasts an act
-   └─> Creates: CarnivalRecord (an act)
+   └─> Creates: CarnivalAct (an act)
    └─> Broadcasts: To other performers in target territories
 
 6. Metrics are tracked
@@ -382,7 +382,7 @@ await carnivalRecordsClient.broadcastAct(record);
 | **Territory** | Logical region | Area of carnival grounds | `string` |
 | **Performer** | Individual vault | Performer in the show | `Performer` interface |
 | **RegistryEntry** | Lightweight performer data | Playbill entry | `RegistryEntry` interface |
-| **Act** | Broadcast content | Performance/show | `CarnivalRecord` interface |
+| **Act** | Broadcast content | Performance/show | `CarnivalAct` interface |
 | **PerformerRatings** | Performance metrics | Audience reviews | `PerformerRatings` interface |
 | **Troupe/Client** | Plugin's network instance | Stage crew/manager | `CarnivalNetworkClient` class |
 

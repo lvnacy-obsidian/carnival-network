@@ -21,7 +21,7 @@ This session completed Phase 3.2 (Archive Abstraction) by implementing CacheArch
 **Purpose**: Provides a fallback storage layer by wrapping the existing PersistentPerformerCache with the ArchiveInterface contract.
 
 **Key Features**:
-- Bidirectional mapping: Performer ↔ CarnivalRecord
+- Bidirectional mapping: Performer ↔ CarnivalAct
 - Full ArchiveInterface implementation (CRUD, batch, queries, index management)
 - TTL-based expiration via underlying cache
 - Size-limited capacity (respects cache configuration)
@@ -29,20 +29,20 @@ This session completed Phase 3.2 (Archive Abstraction) by implementing CacheArch
 
 **Implementation Details**:
 ```typescript
-// Converts Performer entries to CarnivalRecord format
-performerToCarnivalRecord(performer: Performer): CarnivalRecord
-// Stores both Performer and CarnivalRecord formats
+// Converts Performer entries to CarnivalAct format
+performerToCarnivalAct(performer: Performer): CarnivalAct
+// Stores both Performer and CarnivalAct formats
 interface CacheRecord {
   performer: Performer;
-  asRecord: CarnivalRecord;
+  asRecord: CarnivalAct;
   createdAt: Date;
 }
 ```
 
 **Storage Pattern**:
-- **Create**: Synthetic Performer created from CarnivalRecord, stored in cache
-- **Query**: CarnivalRecord metadata stored in performer.metadata.custom
-- **Update**: Both Performer and CarnivalRecord updated together
+- **Create**: Synthetic Performer created from CarnivalAct, stored in cache
+- **Query**: CarnivalAct metadata stored in performer.metadata.custom
+- **Update**: Both Performer and CarnivalAct updated together
 - **Delete**: Delegated to underlying cache.delete()
 
 **Use Cases**:
@@ -154,7 +154,7 @@ All archive types properly typed:
 ### CacheArchive Implementation
 - ✅ Compiles successfully (no TypeScript errors)
 - ✅ Implements all ArchiveInterface methods
-- ✅ Handles Performer → CarnivalRecord conversion
+- ✅ Handles Performer → CarnivalAct conversion
 - ⏳ Unit tests needed (can use MockArchive pattern)
 - ⏳ Integration tests with ActService
 

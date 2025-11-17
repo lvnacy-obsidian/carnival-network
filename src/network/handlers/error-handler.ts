@@ -1,11 +1,11 @@
 // network/error-handler.ts
 import { Log } from '../../utils/logger';
 import { 
-	ApiError, 
+	APIError, 
 	InternalServerError
 } from '../../errors';
 import type {
-	ApiResponse,
+	APIResponse,
 	LogContext
 } from '../../types/public';
 
@@ -17,9 +17,9 @@ const errorLogger: LogContext = {
 /**
  * Convert errors to standardized API responses
  */
-export function handleError(error: unknown, operation: string): ApiResponse {
-	// Handle known ApiError types
-	if (error instanceof ApiError) {
+export function handleError(error: unknown, operation: string): APIResponse {
+	// Handle known APIError types
+	if (error instanceof APIError) {
 		// Log based on severity
 		if (error.statusCode >= 500) {
 			Log.error(errorLogger, `${ operation } failed:`, error);

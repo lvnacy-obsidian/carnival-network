@@ -10,7 +10,7 @@ import type {
 	BeehiivPostData,
 	BeehiivSubscriberData,
 	BeehiivWebhookPayload,
-	CarnivalRecord,
+	CarnivalAct,
 	GitHubWebhookPayload,
 	LogContext,
 	WebhookResponse
@@ -20,7 +20,7 @@ import type { WebhookVerifier } from '../services/webhook-verifier';
 
 const webhookLogger: LogContext = {
 	context: 'Webhook Handlers',
-	path: '/.obsidian/plugins/carnival-records/network/handlers/webhooks'
+	path: '/.obsidian/plugins/carnival-network/src/network/handlers/webhooks'
 };
 
 export class WebhookHandlers {
@@ -138,7 +138,7 @@ export class WebhookHandlers {
 		const pr = payload.pull_request;
 		const repo = payload.repository;
 		
-		const record: CarnivalRecord = {
+		const act: CarnivalAct = {
 			id: `github-pr-${ repo.id }-${ pr.number }-${ Date.now() }`,
 			title: `GitHub PR: ${pr.title}`,
 			territory: 'github-integrations',
@@ -169,8 +169,8 @@ export class WebhookHandlers {
 			}
 		};
 		
-		await this.actService.broadcastAct(record);
-		Log.log(webhookLogger, `GitHub PR record created: ${ pr.title } (PR #${ pr.number })`);
+		await this.actService.broadcastAct(act);
+		Log.log(webhookLogger, `GitHub PR act created: ${ pr.title } (PR #${ pr.number })`);
 	}
 
 	private async handleGitHubIssue(payload: GitHubWebhookPayload): Promise<void> {
@@ -189,7 +189,7 @@ export class WebhookHandlers {
 		const { issue } = payload;
 		const repo = payload.repository;
 
-		const record: CarnivalRecord = {
+		const act: CarnivalAct = {
 			id: `github-issue-${ repo.id }-${ issue.number }-${ Date.now() }`,
 			title: `GitHub Issue: ${ issue.title }`,
 			territory: 'github-integrations',
@@ -220,15 +220,15 @@ export class WebhookHandlers {
 			}
 		};
 		
-		await this.actService.broadcastAct(record);
-		Log.log(webhookLogger, `GitHub issue record created: ${ issue.title } (Issue #${ issue.number })`);
+		await this.actService.broadcastAct(act);
+		Log.log(webhookLogger, `GitHub issue act created: ${ issue.title } (Issue #${ issue.number })`);
 	}
 
 	private async handleBeehiivPostPublished(payload: BeehiivWebhookPayload): Promise<void> {
 
 		const data = payload.data as BeehiivPostData;
 
-		const record = this.actService.createAct({
+		const act = await this.actService.createAct({
 			id: `beehiiv-post-${data.post.id}-${Date.now()}`,
 			title: `Newsletter: ${data.post.title}`,
 			territory: 'newsletter-publishing',
@@ -261,13 +261,13 @@ export class WebhookHandlers {
 			}
 		});
 		
-		await this.actService.broadcastAct(record);
+		await this.actService.broadcastAct(act);
 		Log.log(webhookLogger, `Beehiiv post published: ${ data.post.title }`);
 	}
 
 	private async handleBeehiivSubscriberCreated(payload: BeehiivWebhookPayload): Promise<void> {
 		const data = payload.data as BeehiivSubscriberData;
-		const record: CarnivalRecord = {
+		const act: CarnivalAct = {
 			id: `beehiiv-subscriber-${ data.subscriber.id }-${ Date.now() }`,
 			title: `New Subscriber: ${ data.subscriber.email }`,
 			territory: 'newsletter-growth',
@@ -298,7 +298,7 @@ export class WebhookHandlers {
 			}
 		};
 		
-		await this.actService.broadcastAct(record);
+		await this.actService.broadcastAct(act);
 		Log.log(webhookLogger, `Beehiiv subscriber created: ${data.subscriber.email}`);
 	}
 

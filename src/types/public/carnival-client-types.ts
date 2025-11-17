@@ -24,8 +24,8 @@ import {
 import {
 	ActCountOptions,
 	ActQueryOptions,
-	CarnivalRecord,
-} from './records-types';
+	CarnivalAct,
+} from './acts-types';
 import {
 	SearchOptions,
 	SearchResult
@@ -46,8 +46,8 @@ export interface CarnivalNetworkClientInterface {
 	updatePerformanceStatus(status: Partial<PerformanceStatus>): Promise<void>;
 
 	// Record Operations - The Acts
-	broadcastAct(record: CarnivalRecord): Promise<void>;
-	queryActs(options: ActQueryOptions): CarnivalRecord[];
+	broadcastAct(act: CarnivalAct): Promise<void>;
+	queryActs(options: ActQueryOptions): CarnivalAct[];
 	countActs(options: ActCountOptions): number;
 	searchCarnival(options: SearchOptions): SearchResult[];
 

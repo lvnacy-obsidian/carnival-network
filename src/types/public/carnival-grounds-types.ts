@@ -6,8 +6,10 @@
  * Index of exports:
  * - PerformerRegistrationInfo - Territory performer registration information
  * - RegistryEntry - Lightweight territory performer entry
+ * - TerritoriesListData - Territories list response data
  * - Territory - Territory information
  * - TerritoryDiscoveryOptions - Options for discovering territories
+ * - TerritoryInfo - Summary info of full Territory
  */
 
 /**
@@ -49,8 +51,18 @@ export interface RegistryEntry {
 }
 
 /**
+ * Territories list response data (API endpoint format)
+ */
+export interface TerritoriesListData {
+  territories: TerritoryInfo[];
+  total: number;
+  active: number;
+}
+
+/**
  * Territory information
  * Describes a carnival territory (region/area)
+ * Full internal representation with all metadata
  */
 export interface Territory {
 	/** Territory name (e.g., 'backstage', 'necropolis') */
@@ -81,4 +93,15 @@ export interface TerritoryDiscoveryOptions {
 	timeout?: number;
 	/** Filter by territory name pattern */
 	namePattern?: string;
+}
+
+/**
+ * Territory information summary
+ * Lightweight version for external API responses
+ * Subset of Territory interface with only essential fields
+ */
+export interface TerritoryInfo {
+  name: string;
+  performerCount: number;
+  status: 'active' | 'inactive';
 }

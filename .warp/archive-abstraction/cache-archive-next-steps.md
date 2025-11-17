@@ -43,8 +43,8 @@ This provides the fallback layer mentioned in your docs:
 export class CacheArchive implements ArchiveInterface {
   constructor(private cache: PersistentPerformerCache) {}
   
-  async create(record: CarnivalRecord): Promise<CarnivalRecord> {
-    // Convert CarnivalRecord to Performer format
+  async create(record: CarnivalAct): Promise<CarnivalAct> {
+    // Convert CarnivalAct to Performer format
     // Store in cache
     // Return record
   }

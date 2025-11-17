@@ -12,7 +12,7 @@ import type {
 	ActServiceInterface,
 	ArchiveInterface,
 	CarnivalConfig,
-	CarnivalRecord,
+	CarnivalAct,
 	CreateActParams,
 	ExtendedActQueryOptions,
 	LogContext,
@@ -29,7 +29,7 @@ const actLogger: LogContext = {
 };
 
 /**
- * 🎭 Handles act (record) operations - querying, creating, broadcasting
+ * 🎭 Handles act operations - querying, creating, broadcasting
  * 
  * IMPORTANT: This service now maintains an in-memory act store.
  * In production, this would be backed by a persistent database or file system.
@@ -64,8 +64,8 @@ export class ActService implements ActServiceInterface {
 	/**
 	 * Create a new act
 	 */
-	async createAct(params: CreateActParams): Promise<CarnivalRecord> {
-		const record: CarnivalRecord = {
+	async createAct(params: CreateActParams): Promise<CarnivalAct> {
+		const act: CarnivalAct = {
 			id: params.id ?? this.generateActId(),
 			title: params.title,
 			territory: params.territory,
@@ -85,29 +85,29 @@ export class ActService implements ActServiceInterface {
 		};
 
 		// Store via archive
-		await this.archive.create(record);
+		await this.archive.create(act);
 
-		Log.log(actLogger, `🎭 Created act: ${record.title} (${record.id})`);
+		Log.log(actLogger, `🎭 Created act: ${act.title} (${act.id})`);
 
-		return record;
+		return act;
 	}
 
 	/**
-	 * Generate unique record ID
+	 * Generate unique act ID
 	 */
 	generateActId(): string {
-		return `record-${ Date.now().toString(36) }-${ Math.random().toString(36).substring(2) }`;
+		return `act-${ Date.now().toString(36) }-${ Math.random().toString(36).substring(2) }`;
 	}
 
 	/**
-	 * Generate summary for a record
+	 * Generate summary for a act
 	 */
-	generateSummary(record: CarnivalRecord): string {
-		if (!record.content || record.content.length <= 200) {
-			return record.content ?? 'No content available';
+	generateSummary(act: CarnivalAct): string {
+		if (!act.content || act.content.length <= 200) {
+			return act.content ?? 'No content available';
 		}
 		
-		const sentences = record.content.split(/[.!?]+/).filter(s => s.trim());
+		const sentences = act.content.split(/[.!?]+/).filter(s => s.trim());
 		if (sentences.length > 0) {
 			const firstSentence = sentences[0].trim();
 			if (firstSentence.length <= 200) {
@@ -115,57 +115,13 @@ export class ActService implements ActServiceInterface {
 			}
 		}
 		
-		return `${ record.content.substring(0, 197) }...`;
-	}
-
-	private createChangelogAct(performer: RegistryEntry): CarnivalRecord {
-		return {
-			id: `changelog-${ performer.performerId }-${ Date.now() }`,
-			title: `Recent Changes in ${ performer.territoryName }`,
-			territory: performer.territoryName,
-			actType: 'changelog',
-			content: `Development activity in ${ performer.territoryName } territory. Performer ${ performer.performerId } reporting operational status.`,
-			metadata: {
-				performerId: performer.performerId,
-				lastSeen: performer.lastSeen,
-				capabilities: performer.capabilities
-			},
-			createdAt: performer.lastSeen ?? new Date().toISOString(),
-			status: 'active',
-			syncPreferences: {
-				requireAck: true,
-				broadcastToAll: false,
-				targetTerritories: [performer.territoryName]
-			}
-		};
-	}
-
-	private createConversationAct(performer: RegistryEntry): CarnivalRecord {
-		return {
-			id: `conversation-${ performer.performerId }-${ Date.now() }`,
-			title: `Network Communication - ${ performer.territoryName }`,
-			territory: performer.territoryName,
-			actType: 'conversation',
-			content: `Inter-performer communication logged for territory ${ performer.territoryName }. Active protocols: ${ performer.capabilities.join(', ') }.`,
-			metadata: {
-				performerId: performer.performerId,
-				protocols: performer.capabilities,
-				connectionType: 'http-registry'
-			},
-			createdAt: performer.discoveredAt ?? new Date().toISOString(),
-			status: 'active',
-			syncPreferences: {
-				requireAck: false,
-				broadcastToAll: true,
-				targetTerritories: []
-			}
-		};
+		return `${ act.content.substring(0, 197) }...`;
 	}
 
 	/**
-	 * Broadcast record to network
+	 * Broadcast act to network
 	 */
-	async broadcastAct(record: CarnivalRecord): Promise<void> {
+	async broadcastAct(act: CarnivalAct): Promise<void> {
 		try {
 			if (!this.territoryAccess.isAvailable()) {
 				throw new ServiceUnavailableError(
@@ -175,40 +131,40 @@ export class ActService implements ActServiceInterface {
 			}
 
 			// Store locally first via archive
-			const exists = await this.archive.exists(record.id);
+			const exists = await this.archive.exists(act.id);
 			if (exists) {
-				await this.archive.update(record.id, record);
+				await this.archive.update(act.id, act);
 			} else {
-				await this.archive.create(record);
+				await this.archive.create(act);
 			}
 			
 			const allPerformers = this.territoryAccess.getAllPerformers();
 			let targetPerformers = allPerformers;
 
-			if (!record.syncPreferences.targetTerritories) {
+			if (!act.syncPreferences.targetTerritories) {
 				throw new NotFoundError(
 					'Target Territories',
-					'No target territories specified for record broadcast'
+					'No target territories specified for act broadcast'
 				);
 			}
 			
-			if (!record.syncPreferences.broadcastToAll && 
-				record.syncPreferences.targetTerritories) {
+			if (!act.syncPreferences.broadcastToAll && 
+				act.syncPreferences.targetTerritories) {
 				targetPerformers = allPerformers.filter((performer) => 
-					record.syncPreferences.targetTerritories?.includes(performer.territoryName)
+					act.syncPreferences.targetTerritories?.includes(performer.territoryName)
 				);
 			}
 			
 			const broadcastPromises = targetPerformers.map(async (performer) => {
 				try {
 					const payload = {
-						record,
+						act,
 						source: {
 							performerId: 'local-api-service',
 							territory: 'external-api'
 						},
 						timestamp: new Date().toISOString(),
-						requireAck: record.syncPreferences.requireAck
+						requireAck: act.syncPreferences.requireAck
 					};
 					
 					const endpoint = `${ performer.endpoint }/carnival/network/broadcast`;
@@ -229,10 +185,10 @@ export class ActService implements ActServiceInterface {
 			});
 			
 			await Promise.allSettled(broadcastPromises);
-			Log.log(actLogger, `Act ${ record.id } broadcast to ${ targetPerformers.length } performers`);
+			Log.log(actLogger, `Act ${ act.id } broadcast to ${ targetPerformers.length } performers`);
 			
 		} catch (error) {
-			Log.error(actLogger, 'Failed to broadcast record:', error);
+			Log.error(actLogger, 'Failed to broadcast act:', error);
 			throw error;
 		}
 	}
@@ -262,7 +218,7 @@ export class ActService implements ActServiceInterface {
 	/**
 	 * Get a specific act by ID
 	 */
-	async getAct(actId: string): Promise<CarnivalRecord | null> {
+	async getAct(actId: string): Promise<CarnivalAct | null> {
 		try {
 			return await this.archive.findById(actId);
 		} catch (error) {
@@ -279,7 +235,7 @@ export class ActService implements ActServiceInterface {
 		type?: string;
 		status?: 'active' | 'archived' | 'cancelled';
 		limit?: number;
-	}): Promise<CarnivalRecord[]> {
+	}): Promise<CarnivalAct[]> {
 		const options: ActQueryOptions = {
 			territory: filter?.territory,
 			type: filter?.type,
@@ -382,7 +338,7 @@ export class ActService implements ActServiceInterface {
 	/**
 	 * Query acts based on parameters
 	 */
-	async queryActs(options: ExtendedActQueryOptions): Promise<CarnivalRecord[]> {
+	async queryActs(options: ExtendedActQueryOptions): Promise<CarnivalAct[]> {
 		try {
 			return await this.archive.find({
 				territory: options.territory,
@@ -456,7 +412,7 @@ export class ActService implements ActServiceInterface {
 			}
 
 			// Create a few mock acts for testing
-			const mockActs: CarnivalRecord[] = [
+			const mockActs: CarnivalAct[] = [
 				{
 					id: 'act-mock-1',
 					title: 'Initial Territory Setup',

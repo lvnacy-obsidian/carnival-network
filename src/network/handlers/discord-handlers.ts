@@ -9,7 +9,7 @@ import type { CarnivalQueryService } from '../services/carnival-query-service';
 import { ValidationError as  ValidationErrorsType } from '../../errors';
 import type {
 	APIRequest,
-	CarnivalRecord,
+	CarnivalAct,
 	ExternalClient,
 	LogContext,
 	NetworkStatusResponse,
@@ -22,7 +22,7 @@ import type {
 
 const discordLogger: LogContext = {
 	context: 'Discord Handlers',
-	path: '/.obsidian/plugins/carnival-records/network/handlers/discord'
+	path: '/.obsidian/plugins/carnival-network/src/network/handlers/discord'
 };
 
 export class DiscordHandlers {
@@ -55,8 +55,8 @@ export class DiscordHandlers {
 	}
 
 	/**
-	 * Handle records query request
-	 * GET /api/discord/records
+	 * Handle acts query request
+	 * GET /api/discord/acts
 	 */
 
 	/* eslint-disable require-await */
@@ -99,7 +99,7 @@ export class DiscordHandlers {
 				offset: offsetNum
 			});
 
-			const newActs: Array<CarnivalRecord> = acts.map(act => {
+			const newActs: Array<CarnivalAct> = acts.map(act => {
 				if (typeof act.actType === 'string') {
 					act.actType = '' as 'changelog' | 'conversation';
 				} else {
@@ -125,7 +125,7 @@ export class DiscordHandlers {
 			});
 
 			return {
-				records: formattedRecords,
+				acts: formattedRecords,
 				pagination: {
 					total,
 					limit: limitNum,
@@ -136,7 +136,7 @@ export class DiscordHandlers {
 		} catch (error) {
 			if (!(error instanceof ValidationError)) {
 				Log.error(discordLogger, 'Records query failed:', error);
-				throw new InternalServerError('Failed to query records', error);
+				throw new InternalServerError('Failed to query acts', error);
 			}
 			throw error;
 		}
@@ -144,8 +144,8 @@ export class DiscordHandlers {
 	/* eslint-enable require-await */
 
 	/**
-	 * Handle record creation request
-	 * POST /api/discord/records
+	 * Handle act creation request
+	 * POST /api/discord/acts
 	 */
 	async handleRecordCreate(
 		request: APIRequest,
@@ -175,12 +175,12 @@ export class DiscordHandlers {
 		}
 		
 		if (Object.keys(validationErrors).length > 0) {
-			throw new ValidationError('Invalid record data', validationErrors);
+			throw new ValidationError('Invalid act data', validationErrors);
 		}
 
 		try {
-			const record: CarnivalRecord = {
-				id: this.actService.generateRecordId(),
+			const act: CarnivalAct = {
+				id: this.actService.generateActId(),
 				title: body.title.trim(),
 				territory: body.territory.trim(),
 				actType: body.type,
@@ -200,17 +200,17 @@ export class DiscordHandlers {
 				}
 			};
 
-			await this.actService.broadcastAct(record);
+			await this.actService.broadcastAct(act);
 
 			return {
-				recordId: record.id,
+				actId: act.id,
 				message: `Record created in ${ body. territory } territory`,
-				territory: record.territory,
-				createdAt: record.createdAt
+				territory: act.territory,
+				createdAt: act.createdAt
 			};
 		} catch (error) {
 			Log.error(discordLogger, 'Record creation failed:', error);
-			throw new InternalServerError('Failed to create record', error);
+			throw new InternalServerError('Failed to create act', error);
 		}
 	}
 
@@ -252,7 +252,7 @@ export class DiscordHandlers {
 	}
 
 	/**
-	 * Parse and validate record creation body
+	 * Parse and validate act creation body
 	 */
 	private parseRecordCreateBody(body: unknown): ActCreateRequestBody {
 		if (!body || typeof body !== 'object') {
