@@ -532,7 +532,7 @@ describe('Analytics Generation', () => {
 - Types from `src/types/public/*`
 
 ### Consumed By
-- `CarnivalNetworkClient` - Main client uses query service
+- `CarnivalPerformer` - Main client uses query service
 - External plugins - Via `QueryServiceInterface`
 - Analytics handlers - For reporting
 

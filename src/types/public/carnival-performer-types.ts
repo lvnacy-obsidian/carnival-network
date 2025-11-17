@@ -1,12 +1,18 @@
 /**
  * ============================================================================
- * CARNIVAL NETWORK CLIENT INTERFACE
+ * CARNIVAL PERFORMER INTERFACE
  * ============================================================================
  * 
+ * This is the Network Client Interface
+ * 'Client' → 'Performer'
+ * These are, in essence, the nodes of the network, the performers of the 
+ * troupe. 
+ * `CarnivalPerformer` implements the `CarnivalPerformerInterface`
+ * 
  * Index of exports:
- * - CarnivalNetworkClientInterface - Main interface for consuming plugins to interact 
+ * - CarnivalPerformerInterface - Main interface for consuming plugins to interact 
  *      with the Carnival Network
- * - ExternalClient - Structure representing an external client
+ * - GuestPerformer - Structure representing an external client
  */
 
 import {
@@ -34,7 +40,7 @@ import {
 /**
  * Main interface for consuming plugins to interact with the Carnival Network
  */
-export interface CarnivalNetworkClientInterface {
+export interface CarnivalPerformerInterface {
 	// Lifecycle - The Show Must Go On!
 	enterRing(): Promise<void>; // Initialize
 	leaveRing(): Promise<void>; // Cleanup
@@ -47,9 +53,9 @@ export interface CarnivalNetworkClientInterface {
 
 	// Record Operations - The Acts
 	broadcastAct(act: CarnivalAct): Promise<void>;
-	queryActs(options: ActQueryOptions): CarnivalAct[];
-	countActs(options: ActCountOptions): number;
-	searchCarnival(options: SearchOptions): SearchResult[];
+	queryActs(options: ActQueryOptions): Promise<CarnivalAct[]>;
+	countActs(options: ActCountOptions): Promise<number>;
+	searchCarnival(options: SearchOptions): Promise<SearchResult[]>;
 
 	// Service access (backstage access for advanced performers)
 	getTerritoryService(): TerritoryServiceInterface;
@@ -61,9 +67,9 @@ export interface CarnivalNetworkClientInterface {
 	updateShowConfiguration(config: Partial<CarnivalConfig>): void;
 }
 
-export interface ExternalClient {
+export interface GuestPerformer {
 	id: string;
-	type: 'discord' | 'webhook' | 'external';
+	type: string;  // Integration type (e.g., 'discord', 'webhook', 'github', etc.)
 	permissions: string[];
 	expiresAt: string;
 	rateLimits: { [operation: string]: number };

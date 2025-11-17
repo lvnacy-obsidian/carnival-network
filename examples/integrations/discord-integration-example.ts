@@ -10,7 +10,7 @@ import { ValidationError as  ValidationErrorsType } from '../../errors';
 import type {
 	APIRequest,
 	CarnivalAct,
-	ExternalClient,
+	GuestPerformer,
 	LogContext,
 	NetworkStatusResponse,
 	RecordCreateResponse,
@@ -62,7 +62,7 @@ export class DiscordHandlers {
 	/* eslint-disable require-await */
 	async handleRecordsQuery(
 		request: APIRequest,
-		_client: ExternalClient
+		_client: GuestPerformer
 	): Promise<RecordQueryResponse> {
 
 		const params = request.query as ActQueryParams;
@@ -149,7 +149,7 @@ export class DiscordHandlers {
 	 */
 	async handleRecordCreate(
 		request: APIRequest,
-		client: ExternalClient
+		client: GuestPerformer
 	): Promise<RecordCreateResponse> {
 		const body = this.parseRecordCreateBody(request.body);
 		
@@ -220,7 +220,7 @@ export class DiscordHandlers {
 	 */
 	handleTerritoriesQuery(
 		_request: APIRequest,
-		_client: ExternalClient
+		_client: GuestPerformer
 	): TerritoriesResponse {
 		try {
 			const topology = this.networkService.getNetworkTopology();

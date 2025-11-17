@@ -5,9 +5,9 @@ import {
 } from '../../errors';
 import { Log } from '../../utils/logger';
 import type {
-	ApiRequest,
+	APIRequest,
 	CarnivalNetworkSettings,
-	ExternalClient
+	GuestPerformer
 } from '../../types/public';
 import type { RateLimiterService } from '../services/rate-limiter';
 
@@ -21,7 +21,7 @@ const authLogger = {
  * Handles token generation, validation, refresh, and revocation
  */
 export class ClientAuthenticationManager {
-	private authenticatedClients: Map<string, ExternalClient> = new Map();
+	private authenticatedClients: Map<string, GuestPerformer> = new Map();
 	private rateLimiterService?: RateLimiterService;
 
 	constructor(
@@ -73,7 +73,7 @@ export class ClientAuthenticationManager {
 			const sessionDuration = clientConfig.sessionDuration ?? 24; // hours
 			expiresAt.setHours(expiresAt.getHours() + sessionDuration);
 
-			const client: ExternalClient = {
+			const client: GuestPerformer = {
 				id: clientId,
 				type: clientType,
 				permissions: clientConfig.permissions ?? ['read'],
@@ -119,7 +119,7 @@ export class ClientAuthenticationManager {
 	/**
 	 * Get authenticated client details
 	 */
-	getClient(clientId: string): ExternalClient | undefined {
+	getClient(clientId: string): GuestPerformer | undefined {
 		return this.authenticatedClients.get(clientId);
 	}
 
@@ -236,7 +236,7 @@ export class ClientAuthenticationManager {
 	/**
 	 * Get all authenticated clients (for monitoring/debugging)
 	 */
-	getAuthenticatedClients(): ReadonlyArray<ExternalClient> {
+	getAuthenticatedClients(): ReadonlyArray<GuestPerformer> {
 		return Array.from(this.authenticatedClients.values());
 	}
 
@@ -335,7 +335,7 @@ export class ClientAuthenticationManager {
  * Helper function to extract client ID from request
  * Kept as standalone utility since it's stateless
  */
-export function extractClientId(request: ApiRequest): string | undefined {
+export function extractClientId(request: APIRequest): string | undefined {
 	const clientId = request.headers['x-client-id'];
 	return clientId ? String(clientId) : undefined;
 }

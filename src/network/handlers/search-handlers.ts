@@ -4,13 +4,13 @@ import {
 	ValidationError
 } from '../../errors';
 import { Log } from '../../utils/logger';
-import type { RecordService } from '../services/act-service';
-import type { NetworkQueryService } from '../services/carnival-query-service';
+import type { ActService } from '../services/act-service';
+import type { CarnivalQueryService } from '../services/carnival-query-service';
 import type {
 	AnalyticsQueryParams,
 	AnalyticsResponse,
-	ApiRequest,
-	ExternalClient,
+	APIRequest,
+	GuestPerformer,
 	SearchRequestBody,
 	SearchResponse
 } from '../../types/public';
@@ -22,8 +22,8 @@ const searchLogger = {
 
 export class SearchHandlers {
 	constructor(
-		private readonly recordService: RecordService,
-		private readonly networkService: NetworkQueryService
+		private readonly recordService: ActService,
+		private readonly networkService: CarnivalQueryService
 	) {}
 
 	/**
@@ -31,8 +31,8 @@ export class SearchHandlers {
 	 * POST /api/carnival/search
 	 */
 	async handleSearch(
-		request: ApiRequest,
-		_client: ExternalClient
+		request: APIRequest,
+		_client: GuestPerformer
 	): Promise<SearchResponse> {
 
 		const body = this.parseSearchBody(request.body);
@@ -78,8 +78,8 @@ export class SearchHandlers {
 	 * GET /api/carnival/analytics
 	 */
 	async handleAnalytics(
-		request: ApiRequest,
-		_client: ExternalClient
+		request: APIRequest,
+		_client: GuestPerformer
 	): Promise<AnalyticsResponse> {
 		const params = request.query as AnalyticsQueryParams;
 		const timeframe = String(params.timeframe ?? '7d');

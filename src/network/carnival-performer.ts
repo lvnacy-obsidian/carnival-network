@@ -1,4 +1,76 @@
-// src/network/carnival-network-client.ts
+/**
+ * ============================================================================
+ * CARNIVAL PERFORMER - Individual Network Participant
+ * ============================================================================
+ * 
+ * The CarnivalPerformer is the main implementation of the network client that
+ * consuming plugins interact with. Each performer represents a single vault/plugin
+ * instance participating in the Carnival Network.
+ * 
+ * Architecture:
+ * - One CarnivalPerformer instance = One performer (plugin) in the network
+ * - The collection of all performers = The troupe (managed by carnival-troupe-manager)
+ * - Each performer has independent service instances and state
+ * 
+ * Core Responsibilities:
+ * - Lifecycle management (enter/leave the ring)
+ * - Territory establishment and discovery
+ * - Act broadcasting and querying
+ * - Search operations across the carnival
+ * - Performance status tracking
+ * 
+ * Exports:
+ * - CarnivalPerformer (class) - Main network client implementation
+ * 
+ * Public API Methods:
+ * 
+ * Lifecycle:
+ * - enterRing(): Promise<void> - Initialize performer and join network
+ * - leaveRing(): Promise<void> - Cleanup and exit gracefully
+ * - isPerforming(): boolean - Check if performer is active
+ * 
+ * Territory Operations:
+ * - establishTerritory(territory: string): Promise<void> - Register at territory
+ * - scoutTerritories(territory: string): Promise<RegistryEntry[]> - Discover performers
+ * - updatePerformanceStatus(status: Partial<PerformanceStatus>): Promise<void> - Send heartbeat
+ * 
+ * Act Operations:
+ * - broadcastAct(act: CarnivalAct): Promise<void> - Broadcast act to network
+ * - queryActs(options: ActQueryOptions): Promise<CarnivalAct[]> - Query acts with filters
+ * - countActs(options: ActCountOptions): Promise<number> - Count matching acts
+ * - searchCarnival(options: SearchOptions): Promise<SearchResult[]> - Full-text search
+ * 
+ * Service Access (Advanced):
+ * - getTerritoryService(): TerritoryServiceInterface - Direct territory access
+ * - getQueryService(): QueryServiceInterface - Direct query access
+ * - getActService(): ActServiceInterface - Direct act access
+ * 
+ * Configuration:
+ * - getShowConfiguration(): CarnivalConfig - Get current config
+ * - updateShowConfiguration(config: Partial<CarnivalConfig>): void - Update config
+ * 
+ * Utilities:
+ * - getPerformerId(): string - Get performer identifier
+ * - getPerformanceStats(): object - Get performance statistics
+ * 
+ * Implementation Details:
+ * - Implements: CarnivalPerformerInterface (from carnival-performer-types.ts)
+ * - Used by: CarnivalNetworkPlugin.joinCarnival() (in main.ts)
+ * - Created by: carnival-troupe-manager.joinCarnival()
+ * - Managed in: CarnivalNetworkPlugin.activePerformers Map
+ * 
+ * Dependencies:
+ * - HttpRegistryService - Territory registration and discovery
+ * - ActService - Act creation, broadcasting, and querying
+ * - CarnivalQueryService - Network analytics and intelligence
+ * - TerritoryAccessService - Read-only performer cache access
+ * - PersistentPerformerCache - LRU cache of known performers
+ * 
+ * @see carnival-performer-types.ts - Type definitions
+ * @see carnival-troupe-manager.ts - Collection management
+ * @see main.ts - Plugin lifecycle integration
+ */
+
 import type { App } from 'obsidian';
 import { HttpRegistryService } from './http-registry-service';
 import { ActService } from './services/act-service';
@@ -8,7 +80,7 @@ import { PersistentPerformerCache } from './persistent-performer-cache';
 import { Log } from '../utils/logger';
 import { getPlugin } from '../utils/plugin-utils';
 import type {
-	CarnivalNetworkClientInterface,
+	CarnivalPerformerInterface,
 	TerritoryServiceInterface,
 	QueryServiceInterface,
 	ActServiceInterface,
@@ -25,7 +97,7 @@ import type {
 } from '../types/public';
 
 const clientLogger: LogContext = {
-	context: 'Carnival Network Client',
+	context: 'Carnival Performer',
 	path: '/.obsidian/plugins/carnival-network/network/carnival-network-client'
 };
 
@@ -33,7 +105,7 @@ const clientLogger: LogContext = {
  * Main network client implementation
  * This is what consuming plugins interact with - their ticket to the carnival!
  */
-export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
+export class CarnivalPerformer implements CarnivalPerformerInterface {
 	private performing = false;
 	private territoryService: HttpRegistryService;
 	private actService: ActService;
@@ -212,28 +284,28 @@ export class CarnivalNetworkClient implements CarnivalNetworkClientInterface {
 		Log.log(clientLogger, `📢 Act broadcast: "${act.title}" (${act.id})`);
 	}
 
-	queryActs(options: ActQueryOptions): CarnivalAct[] {
+	async queryActs(options: ActQueryOptions): Promise<CarnivalAct[]> {
 		this.ensurePerforming();
 		
-		const acts = this.actService.queryActs(options);
+		const acts = await this.actService.queryActs(options);
 		Log.log(clientLogger, `🎭 Queried ${acts.length} acts from network`);
 		
 		return acts;
 	}
 
-	countActs(options: ActCountOptions): number {
+	async countActs(options: ActCountOptions): Promise<number> {
 		this.ensurePerforming();
 		
-		const count = this.actService.countActs(options);
+		const count = await this.actService.countActs(options);
 		Log.log(clientLogger, `🔢 Counted ${count} acts matching criteria`);
 		
 		return count;
 	}
 
-	searchCarnival(options: SearchOptions): SearchResult[] {
+	async searchCarnival(options: SearchOptions): Promise<SearchResult[]> {
 		this.ensurePerforming();
 		
-		const results = this.actService.performSearch(options);
+		const results = await this.actService.performSearch(options);
 		Log.log(clientLogger, `🔍 Search returned ${results.length} results for "${options.query}"`);
 		
 		return results;

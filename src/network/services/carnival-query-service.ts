@@ -1,3 +1,178 @@
+/**
+ * ============================================================================
+ * CARNIVAL QUERY SERVICE - Network Analytics & Intelligence
+ * ============================================================================
+ * 
+ * The CarnivalQueryService provides cross-territory querying, network analytics,
+ * and performance intelligence for the Carnival Network. It aggregates data from
+ * all performers and territories to provide real-time insights into network health,
+ * topology, activity, and capabilities.
+ * 
+ * Core Responsibilities:
+ * - Cross-territory queries (single or all territories)
+ * - Performer status tracking
+ * - Network topology mapping
+ * - Activity monitoring and analytics
+ * - Capability discovery and distribution
+ * - Performance metrics generation
+ * - Observability integration (optional)
+ * 
+ * Architecture:
+ * - Reads from TerritoryAccessService (performer cache)
+ * - Integrates with ObservabilityProvider for metrics export
+ * - Buffers metrics via MetricBufferManager
+ * - Calculates analytics in real-time (no persistence)
+ * - Stateless queries (all data derived from current cache state)
+ * 
+ * Exports:
+ * - CarnivalQueryService (class) - Main service implementation
+ * 
+ * Public API Methods:
+ * 
+ * QueryServiceInterface Implementation:
+ * - queryTerritory(territory: string, query: CarnivalQuery): Promise<QueryResult>
+ *   Query single territory for performers, status, or acts
+ *   Query types: 'performers', 'status', 'acts'
+ *   Records metrics for each query
+ *   Returns: { success, territory, performerId, data, timestamp, error? }
+ * 
+ * - queryAllTerritories(query: CarnivalQuery): Promise<QueryResult[]>
+ *   Execute query across all territories
+ *   Parallel execution with individual error handling
+ *   Records aggregate metrics
+ *   Returns: Array of QueryResults (one per territory)
+ * 
+ * - getPerformerStatus(performerId: string): Promise<PerformanceStatus | null>
+ *   Get current status of specific performer
+ *   Calculates: performing/intermission/finale based on lastSeen
+ *     - performing: < 5 minutes since lastSeen
+ *     - intermission: 5 minutes - 1 hour
+ *     - finale: > 1 hour
+ *   Returns: { performerId, status, lastHeartbeat, uptime, metadata }
+ * 
+ * Network Analytics:
+ * - getCarnivalTopology(): CarnivalTopology
+ *   Snapshot of current network structure
+ *   Aggregates: territories, totalPerformers, activeRegistries, capabilities
+ *   Records: performers_total, territories_total metrics
+ *   Returns: Complete topology object
+ * 
+ * - getRecentActivity(hours: number = 24): CarnivalActivity[]
+ *   Activity events within timeframe
+ *   Types: performer_discovery, performer_heartbeat
+ *   Sorted by timestamp (most recent first)
+ *   Limited to 100 most recent events
+ *   Returns: Array of activity objects
+ * 
+ * - generateAnalytics(metrics: string[]): AnalyticsData
+ *   Generate specified analytics categories
+ *   Available metrics:
+ *     - 'records': Total performers, by territory, by type
+ *     - 'activity': Active/inactive counts, recently active, by territory
+ *     - 'capabilities': Capability distribution across performers
+ *     - 'performance': Uptime, territories, average performers per territory
+ *   Returns: Object with requested analytics
+ * 
+ * Utility Methods:
+ * - getUptimeMs(): number
+ *   Service uptime in milliseconds
+ *   Calculated from startTime
+ * 
+ * - getConnectedPerformersCount(): number
+ *   Count of performers seen within last 10 minutes
+ *   Filters by lastSeen timestamp
+ *   Returns: Active performer count
+ * 
+ * Implementation Details:
+ * - Implements: QueryServiceInterface (from carnival-service-types.ts)
+ * - Used by: CarnivalPerformer, ExternalAPIService (Phase 3.3)
+ * - Created in: CarnivalPerformer constructor
+ * - Observability: Optional (configured via CarnivalConfig.observability)
+ * 
+ * Dependencies:
+ * - TerritoryAccessService - Read-only access to performer cache
+ * - ObservabilityProviderFactory - Creates monitoring providers (optional)
+ * - MetricBufferManager - Buffers metrics before flush
+ * - Log - Structured logging
+ * 
+ * Observability Integration:
+ * Current: WebhookProvider (push metrics via HTTP)
+ * Future: Prometheus, Datadog, custom providers
+ * 
+ * Metrics Flow:
+ * 1. Operation occurs (query, status check, analytics generation)
+ * 2. recordMetric() called with MetricDataPoint
+ * 3. Metric added to MetricBufferManager
+ * 4. Periodic flush (configurable interval, default 60s)
+ * 5. Buffer exported to ObservabilityProvider
+ * 6. Provider pushes to external system (webhook, Prometheus, etc.)
+ * 
+ * Metric Types Recorded:
+ * - query_territory (counter) - Per-territory queries
+ * - query_all_territories (counter) - All-territory queries
+ * - performer_status_check (counter) - Status checks
+ * - recent_activity_count (counter) - Activity queries
+ * - carnival.network.performers_total (gauge) - Current performer count
+ * - carnival.network.territories_total (gauge) - Current territory count
+ * 
+ * Analytics Calculation Details:
+ * 
+ * RecordAnalytics:
+ * - Total performers across network
+ * - Performers grouped by territory
+ * - Acts by type (changelog/conversation ratio)
+ * - Capabilities per territory
+ * - Most recent activity per territory
+ * 
+ * ActivityAnalytics:
+ * - Active performers (seen within 1 hour)
+ * - Inactive performers (not seen in 1 hour)
+ * - Recently active (seen within 10 minutes)
+ * - Activity distribution by territory
+ * 
+ * CapabilityAnalytics:
+ * - Distribution of capabilities across performers
+ * - Count of performers with each capability
+ * 
+ * PerformanceAnalytics:
+ * - Service uptime (ms and hours)
+ * - Total territories
+ * - Average performers per territory
+ * 
+ * Topology Mapping:
+ * Provides real-time view of network structure:
+ * - territories: Map of territory → performer count
+ * - totalPerformers: Total across all territories
+ * - activeRegistries: Performers seen within 5 minutes
+ * - capabilities: Unique capabilities across network
+ * - lastUpdated: ISO timestamp of snapshot
+ * 
+ * Performance Considerations:
+ * - All analytics calculated on-demand (no caching)
+ * - Queries read from in-memory cache (fast)
+ * - Activity filtering may be expensive for large networks
+ * - Metric buffering prevents overhead on every operation
+ * - Observability provider failures don't affect queries
+ * 
+ * Error Handling:
+ * - All methods catch and log errors
+ * - Query methods return empty/default on error
+ * - Analytics gracefully degrades (partial results)
+ * - Observability failures logged but don't throw
+ * - NotFoundError for missing performers
+ * 
+ * Lifecycle:
+ * - constructor(): Initialize with TerritoryAccessService, optional observability
+ * - initializeObservability(): Create and test provider
+ * - startFlushInterval(): Begin periodic metric exports
+ * - cleanup(): Stop flush interval, close provider
+ * 
+ * @see carnival-service-types.ts - QueryServiceInterface definition
+ * @see analytics-types.ts - All analytics type definitions
+ * @see carnival-performer.ts - Primary consumer
+ * @see observability-types.ts - Observability configuration
+ */
+
 import { Log } from '../../utils/logger';
 import { TerritoryAccessService } from './territory-access-service';
 import { ObservabilityProviderFactory } from './observability';

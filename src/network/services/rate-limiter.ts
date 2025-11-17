@@ -1,7 +1,7 @@
 import { RateLimitError } from '../../errors';
 import { Log } from '../../utils/logger';
 import type {
-	ExternalClient,
+	GuestPerformer,
 	RateLimit
 } from '../../types/public';
 
@@ -28,7 +28,7 @@ export class RateLimiterService {
 	 * @param operation - Operation being performed
 	 * @returns true if within limit, false if exceeded
 	 */
-	checkLimit(client: ExternalClient, operation: string): boolean {
+	checkLimit(client: GuestPerformer, operation: string): boolean {
 		try {
 			const key = `${client.id}:${operation}`;
 			let limit = this.rateLimits.get(key);
@@ -81,7 +81,7 @@ export class RateLimiterService {
 	/**
 	 * Require rate limit check - throws if exceeded
 	 */
-	requireLimit(client: ExternalClient, operation: string): void {
+	requireLimit(client: GuestPerformer, operation: string): void {
 		if (!this.checkLimit(client, operation)) {
 			const limit = this.getRateLimit(client.id, operation);
 			throw new RateLimitError(

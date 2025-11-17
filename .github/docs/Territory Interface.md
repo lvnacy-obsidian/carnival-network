@@ -3,7 +3,7 @@ then the **service** uses it to register with registries. This follows the
 dependency injection pattern - data flows down from client to service.
 
 ```
-CarnivalNetworkClient
+CarnivalPerformer
   ↓ creates performerInfo (knows about current performer)
   ↓ calls: territoryService.establishTerritory(territory, performerInfo)
 HttpRegistryService

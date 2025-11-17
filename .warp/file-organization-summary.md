@@ -12,7 +12,7 @@
 ### Type Definitions
 - **`src/types/index.ts`** ✅ COMPLETE
   - Public API types with carnival terminology
-  - `CarnivalNetworkClientInterface` interface
+  - `CarnivalPerformerInterface` interface
   - `CarnivalConfig`, `CarnivalAct`, `RegistryEntry`
   - Service interfaces: `TerritoryServiceInterface`, `QueryServiceInterface`, `ActServiceInterface`
   

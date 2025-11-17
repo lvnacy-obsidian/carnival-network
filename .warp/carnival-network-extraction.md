@@ -86,7 +86,7 @@ export default class CarnivalNetworkPlugin extends Plugin {
     performerId: string,
     storage: APIKeyStorage,
     config: CarnivalConfig
-  ): ICarnivalNetworkClient;
+  ): ICarnivalPerformer;
   
   // Get list of performers
   public getPerformers(): string[];
@@ -101,7 +101,7 @@ export default class CarnivalNetworkPlugin extends Plugin {
 
 ### Carnival Network Client Interface
 ```typescript
-export interface ICarnivalNetworkClient {
+export interface ICarnivalPerformer {
   // Lifecycle
   enterRing(): Promise<void>;
   leaveRing(): Promise<void>;

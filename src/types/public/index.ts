@@ -70,13 +70,6 @@ export * from './app-plugin-filler';
 export * from './archive-types';
 
 /**
- * Carnival Client exports
- * - CarnivalNetworkClientInterface
- * - ExternalClient
- */
-export * from './carnival-client-types';
-
-/**
  * Carnival Configuration exports
  * - APIKeyConfig
  * - CarnivalConfig
@@ -98,7 +91,14 @@ export * from './carnival-configuration-types';
 export * from './carnival-grounds-types';
 
 /**
- * Carnival Performers exports
+ * Carnival Performer (singular) exports
+ * - CarnivalPerformerInterface
+ * - GuestPerformer
+ */
+export * from './carnival-performer-types';
+
+/**
+ * Carnival Performers (plural, Troupe) exports
  * - Performer
  * - PerformerCacheConfig
  * - PerformerCacheEntry
@@ -181,16 +181,6 @@ export * from './secure-store-types';
 
 /**
  * Webhook types exports
- * - BeehiivPost
- * - BeehiivPostData
- * - BeehiivSubscriber
- * - BeehiivSubscriberData
- * - BeehiivWebhookPayload
- * - GitHubIssue
- * - GitHubPullRequest
- * - GitHubRepository
- * - GitHubUser
- * - GitHubWebhookPayload
  * - WebhookHandlerInterface
  * - WebhookPayload
  * - WebhookResponse

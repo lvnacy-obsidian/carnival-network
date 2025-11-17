@@ -39,7 +39,7 @@ type UISettings = CarnivalConfig & {
 	externalApiKeys?: Record<string, { enabled: boolean; permissions: string[]; sessionDuration: number; allowedTypes: string[]; description?: string }>;
 	carnivalNetworkSettings?: { network?: { communicationTimeout?: number; maxConnections?: number; registryEndpoints?: readonly string[] } };
 };
-import { setRegistryEndpoints } from '../network/carnival-network';
+import { setRegistryEndpoints } from '../network/carnival-troupe-manager';
 
 export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 	plugin: CarnivalNetworkPlugin;

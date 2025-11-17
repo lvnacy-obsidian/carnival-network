@@ -1,3 +1,146 @@
+/**
+ * ============================================================================
+ * TERRITORY ACCESS SERVICE - Read-Only Performer Cache Access
+ * ============================================================================
+ * 
+ * Provides centralized, read-only access to the performer cache with convenient
+ * query methods. Acts as a façade over PersistentPerformerCache, offering
+ * filtering, aggregation, and transformation operations without exposing cache
+ * mutation methods to services that only need to read performer data.
+ * 
+ * Core Responsibilities:
+ * - Read-only performer queries
+ * - Territory-based filtering
+ * - Capability-based filtering
+ * - Performer counting and aggregation
+ * - Cache availability checking
+ * - Performer → RegistryEntry transformation
+ * 
+ * Architecture:
+ * - Wraps PersistentPerformerCache (no direct cache access for consumers)
+ * - Provides query-oriented API (no set/delete/update methods)
+ * - Transforms Performer (full) → RegistryEntry (lightweight) for network operations
+ * - Used by services that need performer discovery (ActService, CarnivalQueryService)
+ * 
+ * Exports:
+ * - TerritoryAccessService (class) - Read-only cache access facade
+ * 
+ * Public API Methods:
+ * 
+ * Query Methods:
+ * - getAllPerformers(): RegistryEntry[]
+ *   Returns all cached performers as lightweight RegistryEntry objects
+ *   Filters: None (returns all)
+ *   Transformation: Performer → RegistryEntry
+ *   Use: Broadcasting, topology mapping, analytics
+ * 
+ * - getAllTerritories(): string[]
+ *   Returns unique list of all territories
+ *   Deduplicates performer territories
+ *   Returns: Array of territory names
+ *   Use: Territory enumeration, dropdown lists
+ * 
+ * - getPerformer(performerId: string): RegistryEntry | null
+ *   Fetch single performer by ID
+ *   Returns: RegistryEntry or null if not found
+ *   Use: Targeted performer lookups, status checks
+ * 
+ * - getPerformersByTerritory(territory: string): RegistryEntry[]
+ *   Filter performers by specific territory
+ *   Returns: Array of performers in that territory
+ *   Use: Territory-specific broadcasting, analytics
+ * 
+ * - getPerformersByCapability(capability: string): RegistryEntry[]
+ *   Filter performers with specific capability
+ *   Returns: Array of performers with that capability
+ *   Use: Capability-based routing, feature discovery
+ * 
+ * Counting & Aggregation:
+ * - getPerformerCount(): number
+ *   Total count of cached performers
+ *   Returns: Integer count (0 if error)
+ *   Use: Metrics, topology info
+ * 
+ * - getPerformerCountByTerritory(): Record<string, number>
+ *   Performer counts grouped by territory
+ *   Returns: Map of territory → count
+ *   Use: Territory analytics, load distribution
+ * 
+ * Utility Methods:
+ * - isAvailable(): boolean
+ *   Check if cache has data
+ *   Returns: true if cache.size() > 0
+ *   Use: Validation before operations requiring performer data
+ * 
+ * - clearCache(): void
+ *   Clear all cached data
+ *   Delegates to PersistentPerformerCache.clear()
+ *   Use: Manual cache reset, testing
+ * 
+ * Implementation Details:
+ * - Used by: ActService, CarnivalQueryService, HttpRegistryService
+ * - Created in: CarnivalPerformer constructor (passed to services)
+ * - No interface: Concrete implementation (not part of public API contract)
+ * - Immutable: All methods return copies/new arrays (doesn't expose cache internals)
+ * 
+ * Dependencies:
+ * - PersistentPerformerCache - Underlying cache storage
+ * - Log - Error logging
+ * 
+ * Transformation: Performer → RegistryEntry
+ * The service transforms full Performer objects (with status, plugin version, etc.)
+ * into lightweight RegistryEntry objects suitable for network operations:
+ * 
+ * Performer (internal cache format):
+ * - id, name, territory, path, status, lastSeen, capabilities, pluginVersion, metadata
+ * 
+ * RegistryEntry (network format):
+ * - performerId, territoryName, endpoint, capabilities, lastSeen, metadata
+ * 
+ * Transformation logic in performerToRegistryEntry():
+ * - Extracts apiHost, apiPort from metadata
+ * - Constructs endpoint URL: `http://{apiHost}:{apiPort}`
+ * - Maps id → performerId, territory → territoryName
+ * - Preserves: capabilities, lastSeen, metadata
+ * 
+ * Error Handling:
+ * - All methods catch and log errors
+ * - Query methods return empty arrays on error
+ * - Count methods return 0 on error
+ * - isAvailable() returns false on error
+ * - Graceful degradation (never throws)
+ * 
+ * Performance Characteristics:
+ * - All operations are in-memory (fast)
+ * - Filtering creates new arrays (O(n) operations)
+ * - No I/O or network calls
+ * - Suitable for frequent queries
+ * - Cache lookups are O(1) (Map-based)
+ * 
+ * Use Cases:
+ * 
+ * 1. Broadcasting (ActService):
+ *    getAllPerformers() → filter by targetTerritories → POST to each endpoint
+ * 
+ * 2. Analytics (CarnivalQueryService):
+ *    getAllPerformers() → aggregate by territory/capability → generate metrics
+ * 
+ * 3. Territory Discovery (CarnivalPerformer):
+ *    getPerformersByTerritory(territory) → list active performers
+ * 
+ * 4. Capability Routing:
+ *    getPerformersByCapability('webhook_notifications') → send to capable performers
+ * 
+ * 5. Health Checks:
+ *    isAvailable() → validate cache before operations
+ * 
+ * @see persistent-performer-cache.ts - Underlying cache implementation
+ * @see carnival-grounds-types.ts - RegistryEntry type definition
+ * @see carnival-performers-types.ts - Performer type definition
+ * @see act-service.ts - Primary consumer (broadcasting)
+ * @see carnival-query-service.ts - Primary consumer (analytics)
+ */
+
 import { Log } from '../../utils/logger';
 import { PersistentPerformerCache } from '../persistent-performer-cache';
 import type {

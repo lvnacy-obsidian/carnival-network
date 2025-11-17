@@ -258,7 +258,7 @@ interface PerformerRatings {
 ### 🎪 **Clients/Troupes** (Network Client Instances)
 
 **What it is:**
-- An instance of `CarnivalNetworkClient` created for a consuming plugin
+- An instance of `CarnivalPerformer` created for a consuming plugin
 - The interface that plugins use to interact with the carnival network
 - Manages network operations for a specific plugin
 
@@ -274,7 +274,7 @@ interface PerformerRatings {
 **Technical Reality:**
 ```typescript
 // In main.ts of carnival-network plugin
-private activeTroupes: Map<string, CarnivalNetworkClient> = new Map();
+private activeTroupes: Map<string, CarnivalPerformer> = new Map();
 
 // Each consuming plugin gets one
 const client = networkPlugin.joinCarnival('my-plugin', storage, config);
@@ -310,7 +310,7 @@ await carnivalRecordsClient.broadcastAct(record);
 ```
 1. Carnival Records plugin wants to join the network
    └─> Calls: networkPlugin.joinCarnival('carnival-records')
-   └─> Creates: A "troupe" (CarnivalNetworkClient instance)
+   └─> Creates: A "troupe" (CarnivalPerformer instance)
 
 2. The troupe/client initializes
    └─> Calls: client.enterRing()
@@ -340,7 +340,7 @@ await carnivalRecordsClient.broadcastAct(record);
 ### Is "Troupe" the right term?
 
 **Current Usage:**
-- A troupe = A `CarnivalNetworkClient` instance for a plugin
+- A troupe = A `CarnivalPerformer` instance for a plugin
 - Managed by the main carnival-network plugin
 - One troupe per consuming plugin
 
@@ -353,12 +353,12 @@ await carnivalRecordsClient.broadcastAct(record);
 
 1. **Client** (Most Clear)
    - Straightforward, technical, accurate
-   - `private activeClients: Map<string, CarnivalNetworkClient>`
+   - `private activeClients: Map<string, CarnivalPerformer>`
    
 2. **Performance** (Carnival Theme)
    - "A plugin's performance in the carnival"
    - Each plugin has its own performance/participation
-   - `private activePerformances: Map<string, CarnivalNetworkClient>`
+   - `private activePerformances: Map<string, CarnivalPerformer>`
 
 3. **Act Manager**
    - Manages acts for a specific plugin
@@ -366,7 +366,7 @@ await carnivalRecordsClient.broadcastAct(record);
 
 4. **Stage** (Carnival Theme)
    - Each plugin gets its own stage to perform from
-   - `private activeStages: Map<string, CarnivalNetworkClient>`
+   - `private activeStages: Map<string, CarnivalPerformer>`
 
 5. **Keep Troupe** (Current)
    - Redefine it as "the crew/team managing this plugin's network participation"
@@ -384,7 +384,7 @@ await carnivalRecordsClient.broadcastAct(record);
 | **RegistryEntry** | Lightweight performer data | Playbill entry | `RegistryEntry` interface |
 | **Act** | Broadcast content | Performance/show | `CarnivalAct` interface |
 | **PerformerRatings** | Performance metrics | Audience reviews | `PerformerRatings` interface |
-| **Troupe/Client** | Plugin's network instance | Stage crew/manager | `CarnivalNetworkClient` class |
+| **Troupe/Client** | Plugin's network instance | Stage crew/manager | `CarnivalPerformer` class |
 
 ---
 

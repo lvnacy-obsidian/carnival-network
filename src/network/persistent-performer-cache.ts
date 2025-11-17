@@ -1,3 +1,224 @@
+/**
+ * ============================================================================
+ * PERSISTENT PERFORMER CACHE - LRU Cache with TTL and Vault Persistence
+ * ============================================================================
+ * 
+ * Intelligent caching layer for performer discovery data with LRU (Least Recently
+ * Used) eviction, TTL (Time To Live) expiration, optional vault persistence, and
+ * performance metrics tracking. Replaces simple in-memory Map with production-grade
+ * caching that survives plugin reloads and provides detailed cache analytics.
+ * 
+ * Core Responsibilities:
+ * - LRU-based caching with configurable size limits
+ * - Per-entry TTL expiration
+ * - Optional persistence to Obsidian vault storage
+ * - Automatic background saves (configurable interval)
+ * - Cache performance metrics (hits, misses, evictions)
+ * - Compression for persistent storage (optional)
+ * - Graceful degradation to memory-only mode
+ * 
+ * Architecture:
+ * - Map-based cache (fast O(1) lookups)
+ * - Access order tracking (array of IDs for LRU eviction)
+ * - Periodic background persistence (setInterval)
+ * - Dirty flag for efficient persistence (only save when modified)
+ * - Territory-based indexing (stored in each entry)
+ * - Metrics tracking for monitoring and optimization
+ * 
+ * Exports:
+ * - PersistentPerformerCache (class) - Main cache implementation
+ * 
+ * Public API Methods:
+ * 
+ * Core Operations:
+ * - get(id: string): Performer | null
+ *   Retrieve performer from cache
+ *   Checks TTL expiration (returns null if expired)
+ *   Updates access time and order (for LRU)
+ *   Increments accessCount
+ *   Records hit/miss metrics
+ *   Returns: Performer or null
+ * 
+ * - set(id: string, performer: Performer, ttlMs?: number): void
+ *   Store performer in cache
+ *   Uses configurable or default TTL
+ *   Evicts LRU entry if at capacity
+ *   Updates access order
+ *   Sets dirty flag
+ *   Updates memory metrics
+ * 
+ * - delete(id: string): boolean
+ *   Remove performer from cache
+ *   Updates access order
+ *   Sets dirty flag
+ *   Returns: true if entry existed
+ * 
+ * - has(id: string): boolean
+ *   Check if performer exists (non-expired)
+ *   Checks TTL expiration
+ *   Auto-deletes if expired
+ *   Returns: true if valid entry exists
+ * 
+ * - clear(): void
+ *   Remove all entries
+ *   Resets access order
+ *   Sets dirty flag
+ *   Updates metrics
+ * 
+ * Query Operations:
+ * - values(): Performer[]
+ *   Get all non-expired performers
+ *   Filters expired entries
+ *   Auto-deletes expired entries
+ *   Returns: Array of valid performers
+ * 
+ * - size(): number
+ *   Current cache size
+ *   Returns: Entry count
+ * 
+ * Persistence:
+ * - loadFromStorage(app: App): Promise<void>
+ *   Load cache from vault storage
+ *   Decompresses if compression enabled
+ *   Validates loaded data
+ *   Filters expired entries during load
+ *   Called automatically on initialization
+ * 
+ * - saveToStorage(app: App): Promise<void>
+ *   Save cache to vault storage
+ *   Compresses if compression enabled
+ *   Only saves if dirty flag set
+ *   Records storage write metrics
+ *   Called automatically on interval + manual cleanup
+ * 
+ * Metrics & Monitoring:
+ * - getMetrics(): PerformerCacheMetrics
+ *   Get cache performance statistics
+ *   Returns: { hits, misses, evictions, storageWrites, storageReads, totalOperations, memoryUsage }
+ * 
+ * - getStatistics(): CacheStatistics
+ *   Get detailed cache statistics
+ *   Returns: { size, capacity, hitRate, evictionRate, oldestEntry, newestEntry }
+ * 
+ * - resetMetrics(): void
+ *   Reset all metrics counters
+ * 
+ * Implementation Details:
+ * - Used by: HttpRegistryService, TerritoryAccessService
+ * - Created in: CarnivalPerformer constructor
+ * - No interface: Concrete implementation
+ * - Storage key: Configurable (default: 'carnival-performer-cache')
+ * - Background save: Configurable interval (default: 5 minutes)
+ * 
+ * Dependencies:
+ * - App (Obsidian) - Vault storage access (plugin.loadData/saveData)
+ * - Log - Error logging
+ * 
+ * Configuration (PerformerCacheConfig):
+ * - maxSize: Maximum cache entries (default: 1000)
+ * - defaultTtlMs: Default TTL in milliseconds (default: 30 minutes)
+ * - persistenceEnabled: Enable vault persistence (default: true)
+ * - persistenceKey: Storage key in vault (default: 'carnival-performer-cache')
+ * - backgroundSaveIntervalMs: Auto-save interval (default: 5 minutes)
+ * - compressionEnabled: Compress persisted data (default: true)
+ * 
+ * Cache Entry Structure (PerformerCacheEntry):
+ * ```typescript
+ * {
+ *   performer: Performer;        // Full performer object
+ *   territory: string;           // Territory name (for indexing)
+ *   addedAt: number;             // Timestamp when added
+ *   lastAccessed: number;        // Timestamp of last access
+ *   accessCount: number;         // Number of accesses
+ *   ttl: number;                 // Time to live in ms
+ * }
+ * ```
+ * 
+ * LRU Eviction Algorithm:
+ * 1. Check if cache at capacity and entry is new
+ * 2. Get least recently used entry ID (first in accessOrder array)
+ * 3. Delete LRU entry
+ * 4. Increment eviction metric
+ * 5. Add new entry
+ * 6. Update access order
+ * 
+ * TTL Expiration:
+ * - Checked on every get() and has()
+ * - Expired entries auto-deleted
+ * - Expiration: now > (entry.addedAt + entry.ttl)
+ * - No background expiration sweep (checked lazily)
+ * 
+ * Access Order Management:
+ * - Array of performer IDs in access order
+ * - Most recent at end, least recent at start
+ * - Updated on every get() and set()
+ * - Used for LRU eviction (evict accessOrder[0])
+ * - Efficient updates via array manipulation
+ * 
+ * Persistence Format:
+ * ```json
+ * {
+ *   "version": 1,
+ *   "timestamp": "ISO timestamp",
+ *   "entries": [
+ *     { "id": "performer-id", "entry": PerformerCacheEntry },
+ *     ...
+ *   ]
+ * }
+ * ```
+ * Optionally compressed with LZ-string or similar
+ * 
+ * Memory Metrics:
+ * - Approximate calculation based on entry count
+ * - Assumes ~2KB per performer entry (rough estimate)
+ * - Updated on set() and delete()
+ * - Used for monitoring and alerting
+ * 
+ * Performance Characteristics:
+ * - get(): O(1) lookup + O(n) access order update
+ * - set(): O(1) insert + O(n) access order update + potential O(1) eviction
+ * - delete(): O(1) removal + O(n) access order update
+ * - has(): O(1) lookup
+ * - values(): O(n) iteration + filtering
+ * - LRU eviction: O(1)
+ * - Persistence: O(n) serialization
+ * 
+ * Error Handling:
+ * - Persistence failures → fallback to memory-only mode
+ * - Load failures → start with empty cache
+ * - Save failures → logged but don't throw
+ * - Invalid data → filtered during load
+ * - All operations catch and log errors
+ * 
+ * Lifecycle:
+ * - constructor(): Initialize cache, start persistence
+ * - initializePersistence(): Load from storage, start background save
+ * - [ongoing]: Background saves every N minutes
+ * - cleanup(): Final save, clear intervals
+ * 
+ * Use Cases:
+ * 
+ * 1. Performer Discovery:
+ *    HttpRegistryService queries registries → caches performers → TerritoryAccessService reads
+ * 
+ * 2. Offline Operation:
+ *    Plugin reloads → loadFromStorage() → cache repopulated → network available immediately
+ * 
+ * 3. Performance Optimization:
+ *    Frequent performer lookups → cache hits → no network requests
+ * 
+ * 4. Memory Management:
+ *    Cache grows → reaches maxSize → LRU eviction → bounded memory usage
+ * 
+ * 5. Monitoring:
+ *    getMetrics() → track hit rate → optimize TTL and size
+ * 
+ * @see carnival-performers-types.ts - Performer, PerformerCacheEntry, PerformerCacheConfig types
+ * @see http-registry-service.ts - Primary writer (discovery)
+ * @see territory-access-service.ts - Primary reader (queries)
+ * @see carnival-performer.ts - Cache initialization
+ */
+
 import type { App } from 'obsidian';
 import { Log } from '../utils/logger';
 import type {

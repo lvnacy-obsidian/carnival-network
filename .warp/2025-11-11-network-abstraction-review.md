@@ -24,7 +24,7 @@ Reviewed and corrected the abstraction of network methods from `src/main.ts` int
 1. **`src/main.ts`**:
    - Removed incorrect function bindings from `onload()` and `onunload()`
    - Added public API methods `joinCarnival()` and `leaveCarnival()` that properly delegate to abstracted functions
-   - Added proper type imports for `APIKeyStorage` and `CarnivalNetworkClientInterface`
+   - Added proper type imports for `APIKeyStorage` and `CarnivalPerformerInterface`
 
 2. **Documentation Created**:
    - Created `.github/docs/api-integration.md` with comprehensive integration guide

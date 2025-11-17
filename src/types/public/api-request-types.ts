@@ -12,7 +12,7 @@
  * - SearchRequestOptions
  */
 
-import type { ExternalClient } from './carnival-client-types';
+import type { GuestPerformer } from './carnival-performer-types';
 import type { TLSConfig } from './carnival-configuration-types';
 
 /**
@@ -50,7 +50,7 @@ export interface APIRequest {
  * Authenticated request with client context
  */
 export interface AuthenticatedRequest extends APIRequest {
-	client: ExternalClient;
+	client: GuestPerformer;
 }
 
 /**

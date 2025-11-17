@@ -1,3 +1,181 @@
+/**
+ * ============================================================================
+ * HTTP REGISTRY SERVICE - Territory Registration & Discovery
+ * ============================================================================
+ * 
+ * Manages network topology through HTTP/HTTPS registry endpoints, enabling dynamic
+ * discovery of carnival territories and maintaining synchronized operational
+ * intelligence across all connected vault performers. Handles registration,
+ * heartbeats, discovery, and TLS/security for network operations.
+ * 
+ * Core Responsibilities:
+ * - Territory establishment (performer registration)
+ * - Performer discovery via registry endpoints
+ * - Periodic heartbeat transmission
+ * - Territory abandonment (unregistration)
+ * - TLS certificate management
+ * - Registry endpoint health monitoring
+ * - Local REST API integration
+ * 
+ * Architecture:
+ * - Implements TerritoryServiceInterface
+ * - Manages multiple registry endpoints (load distribution, fallback)
+ * - Integrates with PersistentPerformerCache for discovered performers
+ * - Uses RegistryEndpointManager for endpoint rotation/health
+ * - Enforces HTTPS for non-localhost endpoints
+ * - Stores TLS certificates via CertificateStore
+ * 
+ * Exports:
+ * - HttpRegistryService (class) - Registry service implementation
+ * 
+ * Public API Methods (TerritoryServiceInterface):
+ * 
+ * Registration & Lifecycle:
+ * - establishTerritory(territory: string, performerInfo: PerformerRegistrationInfo): Promise<void>
+ *   Register current performer with all configured registries
+ *   Builds full Performer object from registration info
+ *   Extracts Local REST API settings (port, apiKey)
+ *   Starts periodic heartbeat after successful registration
+ *   Parallel registration to all endpoints (continues on partial failure)
+ * 
+ * - abandonTerritory(): Promise<void>
+ *   Unregister from all registries
+ *   Stops heartbeat intervals
+ *   Sends DELETE to /carnival/network/registry on each endpoint
+ *   Gracefully handles individual endpoint failures
+ * 
+ * - sendHeartbeat(): Promise<void>
+ *   Send periodic heartbeat to registries
+ *   Updates lastSeen timestamp
+ *   Keeps performer registration alive
+ *   Called automatically via heartbeat interval
+ * 
+ * Discovery:
+ * - scoutTerritories(territory: string): Promise<RegistryEntry[]>
+ *   Query all registries for performers in territory
+ *   Aggregates results from all endpoints
+ *   Caches discovered performers
+ *   Returns: Unique list of performers
+ * 
+ * - findPerformers(criteria: {...}): RegistryEntry[]
+ *   Search cached performers by id, name, territory, or capabilities
+ *   Supports multiple criteria (AND logic)
+ *   Returns: Matching performers from cache
+ * 
+ * Management:
+ * - broadcastPerformerUpdate(performer: Performer): Promise<void>
+ *   Notify registries of performer changes
+ *   PUT to /carnival/network/registry
+ *   Updates metadata, capabilities, status
+ * 
+ * - updateRegistryEndpoints(endpoints: string[]): void
+ *   Runtime registry endpoint reconfiguration
+ *   Filters non-HTTPS (except localhost)
+ *   Updates RegistryEndpointManager
+ * 
+ * Utility:
+ * - isAvailable(): boolean
+ *   Check if service initialized and performer cache populated
+ * 
+ * - getAllPerformers(): RegistryEntry[]
+ *   Get all cached performers
+ *   Delegates to TerritoryAccessService
+ * 
+ * - cleanup(): void
+ *   Stop all heartbeat intervals
+ *   Close connections
+ * 
+ * Implementation Details:
+ * - Implements: TerritoryServiceInterface (from carnival-service-types.ts)
+ * - Used by: CarnivalPerformer
+ * - Created in: CarnivalPerformer constructor
+ * - Heartbeat: Configurable interval (default from config.heartbeatInterval)
+ * - Registry Protocol: HTTP/HTTPS POST/PUT/DELETE to /carnival/network/registry
+ * 
+ * Dependencies:
+ * - PersistentPerformerCache - Stores discovered performers
+ * - RegistryEndpointManager - Manages endpoint health and rotation
+ * - CertificateStore - TLS certificate management
+ * - fetchWithRetry - Network requests with retry logic
+ * - ValidationError, validateRegistryResponse, validatePerformers - Input validation
+ * - App (Obsidian) - Access to Local REST API plugin settings
+ * 
+ * Registry Protocol:
+ * 
+ * Establishment (POST /carnival/network/registry):
+ * Request: { performer: Performer, action: 'register' }
+ * Response: { success: boolean, performers?: Performer[] }
+ * 
+ * Heartbeat (PUT /carnival/network/registry):
+ * Request: { performer: Performer, action: 'heartbeat' }
+ * Response: { success: boolean }
+ * 
+ * Abandonment (DELETE /carnival/network/registry):
+ * Request: { performer: Performer, action: 'unregister' }
+ * Response: { success: boolean }
+ * 
+ * Discovery (GET /carnival/network/territory/{territory}):
+ * Response: { performers: RegistryEntry[] }
+ * 
+ * TLS/Security:
+ * - Enforces HTTPS for all non-localhost endpoints
+ * - Supports custom CA certificates (config.tlsConfig.caCertPath/Content)
+ * - Supports mTLS (config.tlsConfig.clientCert/Key)
+ * - Optional self-signed certificate acceptance (config.tlsConfig.allowSelfSigned)
+ * - Certificate validation configurable (config.tlsConfig.validateCert)
+ * - SNI support (config.tlsConfig.serverName)
+ * 
+ * Endpoint Filtering:
+ * Initialization filters registry endpoints:
+ * ✅ https://* - Always accepted
+ * ✅ http://localhost:* - Development/local
+ * ✅ http://127.0.0.1:* - Development/local
+ * ❌ http://* (other) - Rejected with warning
+ * 
+ * Heartbeat Management:
+ * - Interval stored per performerId in Map<string, interval>
+ * - startHeartbeat(): Creates setInterval
+ * - stopHeartbeat(): Clears all intervals
+ * - Automatic retry on heartbeat failure (via fetchWithRetry)
+ * - Continues on partial registry failures
+ * 
+ * Error Handling:
+ * - Registration: Logs per-endpoint failures, continues to next
+ * - Discovery: Aggregates from successful registries only
+ * - Heartbeat: Logs failures but doesn't throw
+ * - TLS errors: Detailed logging with certificate info
+ * - Validation errors: Throws ValidationError for invalid responses
+ * 
+ * Performance Characteristics:
+ * - Parallel registration/heartbeat (Promise.allSettled)
+ * - Cached performer lookup (O(1))
+ * - Discovery aggregation (deduplicates by performerId)
+ * - Endpoint health tracked by RegistryEndpointManager
+ * - Automatic endpoint rotation on failures
+ * 
+ * Configuration Integration:
+ * - Reads Local REST API plugin settings (port, apiKey)
+ * - Uses config.registryEndpoints for initial endpoint list
+ * - Respects config.tlsConfig for HTTPS behavior
+ * - Applies config.heartbeatInterval for periodic updates
+ * - Uses config.communicationTimeout for requests
+ * 
+ * Lifecycle:
+ * - constructor(): Initialize registry, detect Local REST API
+ * - establishTerritory(): Register and start heartbeat
+ * - [ongoing]: Periodic heartbeats
+ * - abandonTerritory(): Unregister and stop heartbeats
+ * - cleanup(): Final teardown
+ * 
+ * @see carnival-service-types.ts - TerritoryServiceInterface definition
+ * @see carnival-grounds-types.ts - RegistryEntry, Territory types
+ * @see carnival-performers-types.ts - Performer, PerformerRegistrationInfo types
+ * @see persistent-performer-cache.ts - Performer storage
+ * @see carnival-performer.ts - Primary consumer
+ * @see registry-endpoint-manager.ts - Endpoint health management
+ * @see certificate-store.ts - TLS certificate storage
+ */
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { App } from 'obsidian';
 import { Log } from '../utils/logger';

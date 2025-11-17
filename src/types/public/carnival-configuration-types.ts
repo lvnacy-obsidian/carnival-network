@@ -21,7 +21,7 @@ export interface APIKeyConfig {
 	permissions: string[];
 	sessionDuration?: number;  // hours
 	rateLimits?: { [operation: string]: number };
-	allowedTypes?: Array<'discord' | 'webhook' | 'external'>;
+	allowedTypes?: string[];
 	description?: string;
 }
 
@@ -49,16 +49,6 @@ export interface CarnivalConfig {
 
 	// Webhook settings (announcement system)
 	webhookConfig?: WebhookConfig;
-
-	// Integration settings (external services)
-	integrations?: {
-		github?: {
-			webhookSecret?: string;
-		};
-		beehiiv?: {
-			webhookSecret?: string;
-		};
-	};
 
 	// Optional: initial list of registry endpoints (seeded at startup).
 	// Managed at runtime by `HttpRegistryService.updateRegistryEndpoints`.

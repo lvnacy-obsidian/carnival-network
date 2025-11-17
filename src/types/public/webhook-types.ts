@@ -3,97 +3,17 @@
  * WEBHOOK TYPES
  * ============================================================================
  * 
- * Types for webhook payloads and responses
+ * Generic webhook types for infrastructure-only webhook handling.
+ * Service-specific types (GitHub, Beehiiv, etc.) should be defined in
+ * integration plugins that consume Carnival Network.
  * 
  * Index of exports:
- * - BeehiivPost
- * - BeehiivPostData
- * - BeehiivSubscriber
- * - BeehiivSubscriberData
- * - BeehiivWebhookPayload
- * - GitHubIssue
- * - GitHubPullRequest
- * - GitHubRepository
- * - GitHubUser
- * - GitHubWebhookPayload
- * - WebhookHandlerInterface
- * - WebhookPayload
- * - WebhookResponse
+ * - WebhookHandlerInterface - Interface for custom webhook implementations
+ * - WebhookPayload - Generic webhook payload structure
+ * - WebhookResponse - Generic webhook response structure
  */
 
 import { CarnivalAct } from './acts-types';
-
-export interface BeehiivPost {
-	id: string;
-	title: string;
-	content?: string;
-	url: string;
-}
-
-export interface BeehiivPostData {
-	post: BeehiivPost;
-	publication_id: string;
-	published_at?: string;
-	subscriber_count?: number;
-}
-
-export interface BeehiivSubscriber {
-	id: string;
-	email: string;
-	source?: string;
-}
-
-export interface BeehiivSubscriberData {
-	subscriber: BeehiivSubscriber;
-	publication_id: string;
-	created_at?: string;
-}
-
-export interface BeehiivWebhookPayload {
-	event: string;
-	data: BeehiivPostData | BeehiivSubscriberData;
-}
-
-export interface GitHubIssue {
-	number: number;
-	title: string;
-	body?: string;
-	user: GitHubUser;
-	labels?: Array<{ name: string }>;
-	html_url: string;
-	created_at?: string;
-}
-
-export interface GitHubPullRequest {
-	number: number;
-	title: string;
-	body?: string;
-	user: GitHubUser;
-	head: {
-		ref: string;
-	};
-	html_url: string;
-	created_at?: string;
-}
-
-export interface GitHubRepository {
-	id: number;
-	name: string;
-	full_name: string;
-	html_url: string;
-}
-
-export interface GitHubUser {
-	login: string;
-	id: number;
-}
-
-export interface GitHubWebhookPayload {
-	action: string;
-	repository: GitHubRepository;
-	pull_request?: GitHubPullRequest;
-	issue?: GitHubIssue;
-}
 
 /**
  * Webhook handler interface - implement this for custom webhook integrations

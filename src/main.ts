@@ -1,18 +1,18 @@
 // src/main.ts
 import { Plugin } from 'obsidian';
-import { CarnivalNetworkClient } from './network/carnival-network-client';
+import { CarnivalPerformer } from './network/carnival-performer';
 import {
 	applyObservabilityConfig,
 	joinCarnival,
 	leaveCarnival
-} from './network/carnival-network';
+} from './network/carnival-troupe-manager';
 import { CarnivalNetworkSettingsTab } from './ui/settings-tab';
 import { Log } from './utils/logger';
 import { getPlugin } from './utils/plugin-utils';
 import type {
 	APIKeyStorage,
 	CarnivalConfig,
-	CarnivalNetworkClientInterface,
+	CarnivalPerformerInterface,
 	ObservabilityProvider,
 	LocalRestAPIPublic
 } from './types/public';
@@ -34,7 +34,7 @@ const DEFAULT_SETTINGS: CarnivalNetworkSettings = {
 
 export default class CarnivalNetworkPlugin extends Plugin {
 	settings: CarnivalConfig;
-	private activeTroupes: Map<string, CarnivalNetworkClient> = new Map();
+	private activePerformers: Map<string, CarnivalPerformer> = new Map();
 	private observabilityProvider?: ObservabilityProvider | null;
 	private localRestAPIPublic?: LocalRestAPIPublic | null;
 
@@ -55,11 +55,11 @@ export default class CarnivalNetworkPlugin extends Plugin {
 
 	async onunload(): Promise<void> {
 		// Cleanup all active network clients
-		for (const [performerId, troupe] of this.activeTroupes.entries()) {
-			Log.log(mainLogger, `🎭 Cleaning up troupe for: ${performerId}`);
-			await troupe.leaveRing();
+		for (const [performerId, performer] of this.activePerformers.entries()) {
+			Log.log(mainLogger, `🎭 Cleaning up performer: ${performerId}`);
+			await performer.leaveRing();
 		}
-		this.activeTroupes.clear();
+		this.activePerformers.clear();
 
 		// Cleanup observability provider and unregister metrics endpoint
 		try {
@@ -110,7 +110,7 @@ export default class CarnivalNetworkPlugin extends Plugin {
 		performerId: string,
 		storage: APIKeyStorage,
 		config: CarnivalConfig
-	): CarnivalNetworkClientInterface {
+	): CarnivalPerformerInterface {
 		return joinCarnival.call(this, performerId, storage, config);
 	}
 

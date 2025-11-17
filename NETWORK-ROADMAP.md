@@ -1,8 +1,8 @@
 # Carnival Records - Network Development Roadmap
 
-**Last Updated**: 2025-11-16  
-**Status**: Phase 3.3/5 In Progress (External API Type System Complete)  
-**Next Priority**: Phase 3.3 Implementation (API Router + Service Handlers)
+**Last Updated**: 2025-01-17  
+**Status**: Phase 3.3/5 In Progress (Infrastructure-Only Refactoring Complete)  
+**Next Priority**: Phase 3.3 Implementation (API Router + Generic Infrastructure)
 
 ---
 
@@ -109,18 +109,21 @@ This roadmap outlines the complete network infrastructure development for the Ca
   - Test error scenarios
   - Verify type safety end-to-end
 
-**Core API Endpoints to Implement**
+**Core API Endpoints to Implement** (Infrastructure-Only)
 ```
-GET    /api/acts                 - Query acts with filtering/pagination
-POST   /api/acts                 - Create new act
-GET    /api/acts/:id             - Get specific act by ID
-POST   /api/search               - Cross-vault search
-GET    /api/carnival/status      - Carnival health and status
-GET    /api/territories          - List available territories
-GET    /api/analytics            - Network analytics
-POST   /api/webhooks/github      - GitHub event processing (Phase 3.3.2)
-POST   /api/webhooks/newsletter  - Newsletter event processing (Phase 3.3.2)
+GET    /api/acts                    - Query acts with filtering/pagination
+POST   /api/acts                    - Create new act
+GET    /api/acts/:id                - Get specific act by ID
+POST   /api/search                  - Cross-vault search
+GET    /api/carnival/status         - Carnival health and status
+GET    /api/territories             - List available territories
+GET    /api/analytics               - Network analytics
+POST   /api/webhooks/:webhookId     - Generic webhook endpoint (Phase 3.4)
 ```
+
+**Note**: Service-specific endpoints (GitHub, Beehiiv, Discord) have been removed.
+Integration plugins should implement these as companion plugins.
+See `examples/integrations/README.md` for integration patterns.
 
 **Methods Status Update**
 - ✅ `queryActs()` - IMPLEMENTED in ActService (full filtering, pagination, sorting)
@@ -131,10 +134,11 @@ POST   /api/webhooks/newsletter  - Newsletter event processing (Phase 3.3.2)
 - ✅ `getRecentActivity()` - IMPLEMENTED in CarnivalQueryService (configurable timeframe)
 - ✅ `generateAnalyticsData()` - IMPLEMENTED as `generateAnalytics()` in CarnivalQueryService
 - ✅ `performSearch()` - IMPLEMENTED as `performSearch()` in ActService (relevance-based)
-- [ ] `verifyGitHubSignature()` - NOT YET IMPLEMENTED (Phase 3.3.2)
-- [ ] `verifyNewsletterSignature()` - NOT YET IMPLEMENTED (Phase 3.3.2)
-- [ ] `handleGitHubWebhook()` - PARTIAL (Phase 3.3.2)
-- [ ] `handleNewsletterWebhook()` - PARTIAL (Phase 3.3.2)
+- ✅ **Service-specific handlers REMOVED** (moved to `examples/integrations/`)
+  - Discord handlers → `discord-integration-example.ts`
+  - GitHub webhook → `webhook-integration-example.ts`
+  - Beehiiv webhook → `webhook-integration-example.ts`
+  - Webhook verification → `webhook-verification-example.ts`
 
 **Type System Accomplishments** (2025-11-16)
 - ✅ Eliminated 3 redundant interfaces (RecordsQueryData, ActCreateBody, NetworkStatusData)
@@ -145,6 +149,29 @@ POST   /api/webhooks/newsletter  - Newsletter event processing (Phase 3.3.2)
 - ✅ Established design principles for API type organization
 - ✅ Documented Territory summary vs full object pattern
 - ✅ Validated explicit inline fields approach
+
+**Infrastructure-Only Refactoring** (2025-01-17)
+- ✅ **Nomenclature Hierarchy Clarified**
+  - Carnival (everything) > Troupe (network collection) > Performer (individual client)
+  - `CarnivalClient` → `CarnivalPerformer`
+  - `CarnivalClientInterface` → `CarnivalPerformerInterface`
+  - `ExternalClient` → `GuestPerformer`
+  - Files: `carnival-network-client.ts` → `carnival-performer.ts`
+  - Files: `carnival-network.ts` → `carnival-troupe-manager.ts`
+- ✅ **Service-Specific Handlers Removed**
+  - Deleted: `discord-handlers.ts`, `webhook-handlers.ts`, `webhook-verifier.ts`
+  - Removed: GitHub and Beehiiv webhook types
+  - Kept: Generic webhook infrastructure types
+  - Created: Reference implementations in `examples/integrations/`
+- ✅ **Configuration Simplified**
+  - Removed `integrations.github` and `integrations.beehiiv`
+  - Changed `APIKeyConfig.allowedTypes` to generic `string[]`
+  - Changed `GuestPerformer.type` from union to `string`
+- ✅ **Integration Guide Created**
+  - `examples/integrations/README.md` with companion plugin patterns
+  - Discord, GitHub, Beehiiv reference implementations
+  - Webhook verification examples
+  - Clear infrastructure vs application separation documented
 
 **Leveraging Existing Infrastructure**
 - ✅ Using `CorrelationTracker` for request tracing through API calls
@@ -170,6 +197,9 @@ POST   /api/webhooks/newsletter  - Newsletter event processing (Phase 3.3.2)
 - ✅ Type system complete and organized
 - ✅ Nomenclature standardized across API layer
 - ✅ Design principles documented
+- ✅ Infrastructure-only refactoring complete
+- ✅ Service handlers moved to examples
+- ✅ Integration guide created
 - [ ] API Router implemented and tested
 - [ ] ExternalAPIService handlers complete
 - [ ] Routes registered with Local REST API plugin
@@ -203,15 +233,19 @@ POST   /api/webhooks/newsletter  - Newsletter event processing (Phase 3.3.2)
    - Validate all request/response formats
    - Document error scenarios
 
-**Authentication & Authorization (Phase 3.3.2)** - Planned for next sub-phase
+**Phase 3.4: Generic Webhook Infrastructure** - Planned for future
+- [ ] Generic webhook registration API
+- [ ] Plugin event system for webhook handling
+- [ ] Signature verification framework (plugin-provided)
+- [ ] Webhook routing by ID
+- [ ] Event emission to registered handlers
+
+**Phase 3.5: Authentication & Authorization** - Planned for future
 - [ ] API key management and validation
 - [ ] Session token generation and lifecycle
 - [ ] Permission-based access control
-- [ ] Client type categorization
+- [ ] Client type categorization (now generic string)
 - [ ] Rate limiting implementation
-- [ ] Webhook signature verification
-- [ ] GitHub webhook signature verification
-- [ ] Newsletter webhook signature verification
 
 ---
 

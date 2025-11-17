@@ -1,3 +1,134 @@
+/**
+ * ============================================================================
+ * ACT SERVICE - Content Creation, Broadcasting, and Querying
+ * ============================================================================
+ * 
+ * The ActService is the central hub for all act-related operations in the
+ * Carnival Network. It manages the lifecycle of acts (content shared across
+ * vaults), from creation through broadcasting to querying and search.
+ * 
+ * Core Responsibilities:
+ * - Act creation and validation
+ * - Network broadcasting to target performers
+ * - Querying and filtering acts
+ * - Full-text search across acts
+ * - Summary generation for acts
+ * - Archive integration for persistence
+ * 
+ * Architecture:
+ * - Uses ArchiveInterface for pluggable storage (in-memory, cache, database)
+ * - Integrates with TerritoryAccessService for performer discovery
+ * - Handles network requests with retry logic and circuit breaking
+ * - Supports pagination and advanced filtering
+ * 
+ * Exports:
+ * - ActService (class) - Main service implementation
+ * 
+ * Public API Methods:
+ * 
+ * Creation & Broadcasting:
+ * - createAct(params: CreateActParams): Promise<CarnivalAct>
+ *   Creates new act with generated ID and timestamps
+ *   Stores via ArchiveInterface
+ *   Returns: Complete CarnivalAct object
+ * 
+ * - broadcastAct(act: CarnivalAct): Promise<void>
+ *   Stores locally then broadcasts to network
+ *   Respects act.syncPreferences (targetTerritories, broadcastToAll, requireAck)
+ *   Uses Promise.allSettled for parallel broadcasts
+ *   Gracefully handles individual performer failures
+ * 
+ * - generateActId(): string
+ *   Generates unique ID: `act-{timestamp-base36}-{random-base36}`
+ *   Used when params.id not provided
+ * 
+ * - generateSummary(act: CarnivalAct): string
+ *   Truncates content to ~200 characters
+ *   Prefers first complete sentence
+ *   Returns: Displayable summary text
+ * 
+ * Querying:
+ * - queryActs(options: ExtendedActQueryOptions): Promise<CarnivalAct[]>
+ *   Filter by: territory, type, performerId, status, dateRange
+ *   Sort by: any field with asc/desc
+ *   Pagination: limit, offset
+ *   Returns: Array of matching acts
+ * 
+ * - queryActsPaginated(options: ExtendedActQueryOptions): Promise<PaginatedActResult>
+ *   Convenience wrapper for pagination
+ *   Calculates: totalPages, hasNext, hasPrevious
+ *   Returns: { acts, pagination }
+ * 
+ * - countActs(options: ActCountOptions): Promise<number>
+ *   Count acts matching filters
+ *   Returns: Total count (0 if error)
+ * 
+ * - getAct(actId: string): Promise<CarnivalAct | null>
+ *   Fetch single act by ID
+ *   Returns: Act or null if not found
+ * 
+ * - listActs(filter?: {...}): Promise<CarnivalAct[]>
+ *   Simplified query with optional filters
+ *   Default limit: 100
+ *   Returns: Array of acts
+ * 
+ * Search:
+ * - performSearch(options: SearchOptions): Promise<SearchResult[]>
+ *   Full-text search across title, content, territory
+ *   Relevance scoring (title: 0.5, content: 0.3, matches: 0.1 each)
+ *   Multi-territory and actType filtering
+ *   Returns: Sorted results with relevance scores
+ * 
+ * Utilities:
+ * - cleanup(): void - Service teardown
+ * 
+ * Implementation Details:
+ * - Implements: ActServiceInterface (from carnival-service-types.ts)
+ * - Used by: CarnivalPerformer, ExternalAPIService (Phase 3.3)
+ * - Created in: CarnivalPerformer constructor
+ * - Storage: Injected ArchiveInterface (defaults to InMemoryArchive)
+ * 
+ * Dependencies:
+ * - TerritoryAccessService - Performer discovery for broadcasting
+ * - ArchiveInterface - Pluggable storage backend
+ * - fetchWithRetry - Network requests with retry logic
+ * - Log - Structured logging
+ * 
+ * Storage Strategy:
+ * Current: InMemoryArchive (with mock data seeding)
+ * Phase 3.2: CacheArchive (vault-persisted)
+ * Phase 4: Database-backed archive (RxDB)
+ * 
+ * Network Broadcasting Flow:
+ * 1. Store act locally via archive
+ * 2. Get all performers from TerritoryAccessService
+ * 3. Filter by targetTerritories (if not broadcastToAll)
+ * 4. Build payload with source, timestamp, requireAck
+ * 5. POST to /carnival/network/broadcast on each performer
+ * 6. Promise.allSettled (don't fail entire broadcast on single error)
+ * 7. Log success/failure for each performer
+ * 
+ * Search Algorithm:
+ * 1. Query archive with territory/type filters
+ * 2. Further filter by multiple territories/types if specified
+ * 3. Lowercase query and searchable text
+ * 4. Match in title, content, territory, actType
+ * 5. Calculate relevance score based on match locations
+ * 6. Sort by relevance descending
+ * 7. Return top N results (respecting limit)
+ * 
+ * Error Handling:
+ * - All methods catch and log errors
+ * - Query/count methods return empty/zero on error
+ * - Broadcast continues even if some targets fail
+ * - Network errors logged per-performer
+ * 
+ * @see carnival-service-types.ts - ActServiceInterface definition
+ * @see acts-types.ts - CarnivalAct, ActQueryOptions types
+ * @see carnival-performer.ts - Primary consumer
+ * @see archive-types.ts - ArchiveInterface contract
+ */
+
 import { Log } from '../../utils/logger';
 import { fetchWithRetry } from '../http-client';
 import { TerritoryAccessService } from './territory-access-service';

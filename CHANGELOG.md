@@ -2,8 +2,8 @@
 
 **Project**: Obsidian Carnival Network Plugin  
 **Purpose**: Centralized network abstraction layer for distributed Obsidian vault coordination  
-**Last Updated**: 2025-11-16  
-**Current Status**: Phase 3.3 In Progress (External API Type System Complete)
+**Last Updated**: 2025-01-17  
+**Current Status**: Phase 3.3 In Progress (Infrastructure-Only Refactoring Complete)
 
 ---
 
@@ -25,8 +25,9 @@ This changelog serves as a comprehensive reference for AI agents and developers 
 
 1. [Current State Summary](#current-state-summary)
 2. [Major Changes by Category](#major-changes-by-category)
-3. [Recent Session Work (2025-11-16)](#recent-session-work-2025-11-16)
-4. [Recent Session Work (2025-11-15)](#recent-session-work-2025-11-15)
+3. [Recent Session Work (2025-01-17)](#recent-session-work-2025-01-17)
+4. [Recent Session Work (2025-11-16)](#recent-session-work-2025-11-16)
+5. [Recent Session Work (2025-11-15)](#recent-session-work-2025-11-15)
 5. [Recent Session Work (2025-11-14)](#recent-session-work-2025-11-14)
 6. [Recent Session Work (2025-11-13)](#recent-session-work-2025-11-13)
 7. [Recent Session Work (2025-11-11)](#recent-session-work-2025-11-11)
@@ -74,6 +75,141 @@ Nomenclature: 100% carnival-themed
 - **Local REST API Plugin**: External HTTP communication
 - **Secure Storage Plugin**: API key management
 - **TypeScript**: Type safety and compilation
+
+---
+
+## Recent Session Work (2025-01-17)
+
+### Session Focus: Infrastructure-Only Refactoring
+**Duration**: Architecture review and service handler removal  
+**Status**: ✅ Complete
+
+#### Key Accomplishments
+
+**1. Nomenclature Consistency & Hierarchy Clarification**
+- ✅ Established clear hierarchy: Carnival (everything) > Troupe (network collection) > Performer (individual client)
+- ✅ Renamed types for consistency:
+  - `CarnivalClient` → `CarnivalPerformer`
+  - `CarnivalClientInterface` → `CarnivalPerformerInterface`
+  - `ExternalClient` → `GuestPerformer`
+- ✅ Renamed files:
+  - `carnival-network-client.ts` → `carnival-performer.ts`
+  - `carnival-network.ts` → `carnival-troupe-manager.ts`
+  - `carnival-client-types.ts` → `carnival-performer-types.ts`
+- ✅ Updated variable names:
+  - `activeTroupes` → `activePerformers`
+  - `troupe` (loop var) → `performer`
+- ✅ Updated function names:
+  - `hasTroupe()` → `hasPerformer()`
+
+**2. Comprehensive Module Headers**
+- ✅ Generated documentation headers for high-impact modules:
+  - `ActService` - Act creation, broadcasting, querying, search
+  - `CarnivalQueryService` - Network analytics, topology, performer status
+  - `TerritoryAccessService` - Read-only performer cache access
+  - `HttpRegistryService` - Territory registration and discovery
+  - `PersistentPerformerCache` - LRU cache with vault persistence
+- ✅ Headers include: purpose, responsibilities, architecture context, complete API documentation, implementation details, data flows, performance characteristics
+
+**3. Service-Specific Handler Removal** (🎯 **INFRASTRUCTURE-ONLY**)
+- ✅ Removed service-specific handler files:
+  - `src/network/handlers/discord-handlers.ts`
+  - `src/network/handlers/webhook-handlers.ts`
+  - `src/network/services/webhook-verifier.ts`
+- ✅ Removed service-specific types:
+  - GitHub types: `GitHubWebhookPayload`, `GitHubPullRequest`, `GitHubIssue`, `GitHubRepository`, `GitHubUser`
+  - Beehiiv types: `BeehiivWebhookPayload`, `BeehiivPost`, `BeehiivPostData`, `BeehiivSubscriber`, `BeehiivSubscriberData`
+- ✅ Kept generic infrastructure types:
+  - `WebhookHandlerInterface`
+  - `WebhookPayload`
+  - `WebhookResponse`
+- ✅ Updated configuration types:
+  - Removed `integrations.github.webhookSecret`
+  - Removed `integrations.beehiiv.webhookSecret`
+  - Changed `APIKeyConfig.allowedTypes` from union to generic `string[]`
+- ✅ Updated performer types:
+  - Changed `GuestPerformer.type` from `'discord' | 'webhook' | 'external'` to `string`
+- ✅ Created `examples/integrations/` directory with reference implementations:
+  - `discord-integration-example.ts`
+  - `webhook-integration-example.ts`
+  - `webhook-verification-example.ts`
+  - `README.md` (integration guide)
+
+#### Design Philosophy
+
+**Infrastructure vs Application Separation**
+- **Carnival Network Provides** (Infrastructure):
+  - ✅ Network coordination and topology
+  - ✅ Act storage and broadcasting
+  - ✅ Territory discovery and registration
+  - ✅ Authentication framework (generic)
+  - ✅ Generic REST API endpoints
+- **Integration Plugins Provide** (Application):
+  - Service-specific payload parsing
+  - Service-specific authentication
+  - Payload → Act transformation logic
+  - Service-specific error handling
+  - Service-specific business rules
+
+**Integration Pattern**
+```typescript
+1. Receive service-specific payload
+   ↓
+2. Verify signature/authentication (if needed)
+   ↓
+3. Parse service-specific format
+   ↓
+4. Transform to CarnivalAct format
+   ↓
+5. Use Carnival Network API to broadcast
+   ↓
+6. Return service-specific response
+```
+
+**Companion Plugin Structure**
+- Integration plugins declare dependency on `carnival-network`
+- Access Carnival API via `joinCarnival()` method
+- Register handlers for specific webhook IDs
+- Use generic infrastructure, provide specific implementations
+
+#### Files Modified
+```
+DELETED:
+src/network/handlers/discord-handlers.ts
+src/network/handlers/webhook-handlers.ts
+src/network/services/webhook-verifier.ts
+
+CREATED:
+examples/integrations/
+├── discord-integration-example.ts
+├── webhook-integration-example.ts
+├── webhook-verification-example.ts
+└── README.md
+
+MODIFIED:
+src/types/public/
+├── webhook-types.ts              # Removed GitHub/Beehiiv types, kept generic types
+├── carnival-configuration-types.ts # Removed integrations.github/beehiiv
+├── carnival-performer-types.ts   # GuestPerformer.type now generic string
+└── index.ts                       # Updated exports list
+```
+
+#### Impact & Future Direction
+
+**Breaking Changes**
+- Service-specific handlers removed (moved to examples)
+- Service-specific types removed (integration plugins must define their own)
+- Configuration `integrations` field removed
+
+**Migration Path**
+- Service integrations should become separate companion plugins
+- Reference implementations available in `examples/integrations/`
+- Integration guide in `examples/integrations/README.md`
+
+**Next Steps**
+- Phase 3.4: Generic webhook registration API
+- Phase 3.4: Plugin event system for webhook handling
+- Phase 4: Example integration plugins (Discord, GitHub, Beehiiv)
 
 ---
 

@@ -32,7 +32,7 @@ Your plugin must have access to:
 
 ```typescript
 import type { 
-  CarnivalNetworkClientInterface,
+  CarnivalPerformerInterface,
   CarnivalConfig,
   APIKeyStorage 
 } from 'carnival-network';
@@ -71,7 +71,7 @@ await networkClient.enterRing();
 
 ```typescript
 export default class MyPlugin extends Plugin {
-  private networkClient: CarnivalNetworkClientInterface;
+  private networkClient: CarnivalPerformerInterface;
 
   async onload(): Promise<void> {
     // Wait for plugins to load
