@@ -53,7 +53,7 @@ export interface ActMetadata {
 
 export interface ActQueryOptions extends Omit<ActQueryParams, 'type'> {
 	type?: string; // Broader than ActQueryParams
-	limit: number;  // Make required
+	limit: number | undefined;  // Make required
 	offset: number; // Make required
 	sortBy?: 'createdAt' | 'updatedAt' | 'title';
 	sortOrder?: 'asc' | 'desc';

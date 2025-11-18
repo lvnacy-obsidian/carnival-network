@@ -34,7 +34,7 @@ const DEFAULT_SETTINGS: CarnivalNetworkSettings = {
 
 export default class CarnivalNetworkPlugin extends Plugin {
 	settings: CarnivalConfig;
-	private activePerformers: Map<string, CarnivalPerformer> = new Map();
+	activePerformers: Map<string, CarnivalPerformer> = new Map();
 	private observabilityProvider?: ObservabilityProvider | null;
 	private localRestAPIPublic?: LocalRestAPIPublic | null;
 
