@@ -26,6 +26,7 @@
  * Public API Functions (bound to CarnivalNetworkPlugin context):
  * - getPerformers(): string[] - List all active performer IDs
  * - hasPerformer(performerId: string): boolean - Check if performer exists
+ * - initializeAPIRouter: void - onload() method to instantiate API routes
  * - joinCarnival(performerId, storage, config): CarnivalPerformerInterface - Add performer
  * - leaveCarnival(performerId: string): Promise<void> - Remove performer
  * 
@@ -104,6 +105,7 @@
  */
 
 import { CarnivalPerformer } from './carnival-performer';
+import { APIRouter } from '../api/api-router';
 import { registerMetricsEndpoint } from './services/observability/metrics';
 import { ObservabilityProviderFactory } from './services/observability';
 import { Log } from '../utils/logger';
@@ -119,6 +121,50 @@ const networkLogger = {
 	context: 'Carnival Network',
 	path: '.obsidian/plugins/carnival-network/network/carnival-network.ts'
 };
+
+/**
+ * ============================================================================
+ * Initialize API Router
+ * ============================================================================
+ * 
+ * Creates and registers the external REST API router with the Local REST API
+ * plugin. This function is called during plugin initialization (onload).
+ * 
+ * @example
+ * ```typescript
+ * // In main.ts onload():
+ * this.app.workspace.onLayoutReady(async () => {
+ *   await initializeAPIRouter.call(this);
+ * });
+ * ```
+ */
+export async function initializeAPIRouter(): Promise<void> {
+	try {
+		// Get Local REST API plugin
+		const localRestPlugin = getPlugin(this.app, 'obsidian-local-rest-api');
+		
+		if (!localRestPlugin) {
+			Log.warn(networkLogger, 'Local REST API plugin not found - API routes not registered');
+			return;
+		}
+
+		// Get public API from Local REST API plugin
+		const restAPI = localRestPlugin.getPublicApi?.(this.manifest);
+		
+		if (!restAPI) {
+			Log.warn(networkLogger, 'Could not get Local REST API public API');
+			return;
+		}
+
+		// Create and register API router
+		this.apiRouter = new APIRouter(this.app, this);
+		this.apiRouter.registerRoutes(restAPI);
+		
+		Log.log(networkLogger, '🎪 API router initialized successfully');
+	} catch (error) {
+		Log.error(networkLogger, 'Failed to initialize API router:', error);
+	}
+}
 
 /**
  * ============================================================================

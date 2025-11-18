@@ -82,12 +82,15 @@
  * @see local-rest-api-types.ts - Type definitions
  */
 
-import type { App } from 'obsidian';
 import { ExternalAPIService } from './external-api-service';
 import { Log } from '../utils/logger';
+import { APIError } from '../errors';
+import type { App } from 'obsidian';
 import type CarnivalNetworkPlugin from '../main';
 import type {
+	APIRequest,
 	LocalRestAPIPublic,
+	LocalRestAPIResponse,
 	LogContext
 } from '../types/public';
 
@@ -160,12 +163,14 @@ export class APIRouter {
 	 * Register acts CRUD routes
 	 */
 	private registerActsRoutes(): void {
-		if (!this.localRestAPI) return;
+		if (!this.localRestAPI) {
+			return;
+		}
 
 		// GET /api/acts - Query acts
-		this.localRestAPI.addRoute('/api/acts').get(async (req, res) => {
+		this.localRestAPI.addRoute('/api/acts').get(async (req: APIRequest, res: LocalRestAPIResponse) => {
 			try {
-				const result = await this.apiService.handleActsQuery(req as any);
+				const result = await this.apiService.handleActsQuery(req);
 				res.status(200).json(result);
 			} catch (error) {
 				this.handleRouteError(res, error);
@@ -173,7 +178,7 @@ export class APIRouter {
 		});
 
 		// POST /api/acts - Create act
-		this.localRestAPI.addRoute('/api/acts').post(async (req, res) => {
+		this.localRestAPI.addRoute('/api/acts').post(async (req: APIRequest, res: LocalRestAPIResponse) => {
 			try {
 				const result = await this.apiService.handleActCreate(req as any);
 				res.status(201).json(result);
@@ -183,9 +188,9 @@ export class APIRouter {
 		});
 
 		// GET /api/acts/:id - Get specific act
-		this.localRestAPI.addRoute('/api/acts/:id').get(async (req, res) => {
+		this.localRestAPI.addRoute('/api/acts/:id').get(async (req: APIRequest, res: LocalRestAPIResponse) => {
 			try {
-				const result = await this.apiService.handleActGet(req as any);
+				const result = await this.apiService.handleActGet(req);
 				res.status(200).json(result);
 			} catch (error) {
 				this.handleRouteError(res, error);
@@ -199,12 +204,14 @@ export class APIRouter {
 	 * Register search routes
 	 */
 	private registerSearchRoutes(): void {
-		if (!this.localRestAPI) return;
+		if (!this.localRestAPI) {
+			return;
+		}
 
 		// POST /api/search - Search acts
-		this.localRestAPI.addRoute('/api/search').post(async (req, res) => {
+		this.localRestAPI.addRoute('/api/search').post(async (req: APIRequest, res: LocalRestAPIResponse) => {
 			try {
-				const result = await this.apiService.handleSearch(req as any);
+				const result = await this.apiService.handleSearch(req);
 				res.status(200).json(result);
 			} catch (error) {
 				this.handleRouteError(res, error);
@@ -218,10 +225,12 @@ export class APIRouter {
 	 * Register network status routes
 	 */
 	private registerNetworkRoutes(): void {
-		if (!this.localRestAPI) return;
+		if (!this.localRestAPI) {
+			return;
+		}
 
 		// GET /api/carnival/status - Carnival status
-		this.localRestAPI.addRoute('/api/carnival/status').get(async (req, res) => {
+		this.localRestAPI.addRoute('/api/carnival/status').get((res: LocalRestAPIResponse) => {
 			try {
 				const result = this.apiService.handleCarnivalStatus();
 				res.status(200).json(result);
@@ -231,7 +240,7 @@ export class APIRouter {
 		});
 
 		// GET /api/territories - Territories list
-		this.localRestAPI.addRoute('/api/territories').get(async (req, res) => {
+		this.localRestAPI.addRoute('/api/territories').get((res: LocalRestAPIResponse) => {
 			try {
 				const result = this.apiService.handleTerritoriesList();
 				res.status(200).json(result);
@@ -241,9 +250,9 @@ export class APIRouter {
 		});
 
 		// GET /api/analytics - Network analytics
-		this.localRestAPI.addRoute('/api/analytics').get(async (req, res) => {
+		this.localRestAPI.addRoute('/api/analytics').get((req: APIRequest, res: LocalRestAPIResponse) => {
 			try {
-				const result = this.apiService.handleAnalytics(req as any);
+				const result = this.apiService.handleAnalytics(req);
 				res.status(200).json(result);
 			} catch (error) {
 				this.handleRouteError(res, error);
@@ -262,14 +271,14 @@ export class APIRouter {
 	/**
 	 * Handle route errors with proper status codes
 	 */
-	private handleRouteError(res: any, error: unknown): void {
-		const apiError = error as any;
+	private handleRouteError(res: LocalRestAPIResponse, error: APIError): void {
+		const apiError = error;
 		
-		const statusCode = apiError.statusCode || 500;
+		const statusCode = apiError.statusCode ?? 500;
 		const response = {
 			status: 'error',
-			error: apiError.code || 'UNKNOWN_ERROR',
-			message: apiError.message || 'An error occurred',
+			error: apiError.code ?? 'UNKNOWN_ERROR',
+			message: apiError.message ?? 'An error occurred',
 			details: apiError.details,
 			timestamp: new Date().toISOString()
 		};

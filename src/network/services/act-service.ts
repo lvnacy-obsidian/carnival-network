@@ -149,7 +149,6 @@ import type {
 	LogContext,
 	NetworkRequestResponse,
 	PaginatedActResult,
-	RegistryEntry,
 	SearchOptions,
 	SearchResult
 } from '../../types/public';

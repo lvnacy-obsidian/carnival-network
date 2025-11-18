@@ -117,7 +117,7 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 				toggle
 					.setValue(pluginSettings.autoDiscovery ?? false)
 					.onChange(async (value) => {
-						pluginSettings.autoDiscovery = value as boolean;
+						pluginSettings.autoDiscovery = value;
 						await this.plugin.saveSettings();
 					});
 			});
@@ -129,7 +129,7 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 				toggle
 					.setValue(pluginSettings.syncChangelogs ?? false)
 					.onChange(async (value) => {
-						pluginSettings.syncChangelogs = value as boolean;
+						pluginSettings.syncChangelogs = value;
 						await this.plugin.saveSettings();
 					});
 			});
@@ -141,7 +141,7 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 				toggle
 					.setValue(pluginSettings.syncConversations ?? false)
 					.onChange(async (value) => {
-						pluginSettings.syncConversations = value as boolean;
+						pluginSettings.syncConversations = value;
 						await this.plugin.saveSettings();
 					});
 			});
@@ -153,7 +153,7 @@ export class CarnivalNetworkSettingsTab extends PluginSettingTab {
 				toggle
 					.setValue(pluginSettings.broadcastByDefault ?? false)
 					.onChange(async (value) => {
-						pluginSettings.broadcastByDefault = value as boolean;
+						pluginSettings.broadcastByDefault = value;
 						await this.plugin.saveSettings();
 					});
 			});

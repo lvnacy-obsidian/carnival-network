@@ -34,10 +34,10 @@ export interface SearchOptions {
  * Search response data (API endpoint format)
  */
 export interface SearchResponse {
-  query: string;
-  results: SearchResult[];
-  resultCount: number;
-  hasMore: boolean;
+	query: string;
+	results: SearchResult[];
+	resultCount: number;
+	hasMore: boolean;
 }
 
 /**

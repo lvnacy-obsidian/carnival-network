@@ -30,10 +30,10 @@ export interface ActCountOptions {
  * Act creation response data (API endpoint format)
  */
 export interface ActCreateData {
-  id: string;
-  title: string;
-  territory: string;
-  createdAt: string;
+	id: string;
+	title: string;
+	territory: string;
+	createdAt: string;
 }
 
 export interface ActMetadata {

@@ -3,9 +3,11 @@ import { Plugin } from 'obsidian';
 import { CarnivalPerformer } from './network/carnival-performer';
 import {
 	applyObservabilityConfig,
+	initializeAPIRouter,
 	joinCarnival,
 	leaveCarnival
 } from './network/carnival-troupe-manager';
+import { APIRouter } from './api/api-router';
 import { CarnivalNetworkSettingsTab } from './ui/settings-tab';
 import { Log } from './utils/logger';
 import { getPlugin } from './utils/plugin-utils';
@@ -34,9 +36,10 @@ const DEFAULT_SETTINGS: CarnivalNetworkSettings = {
 
 export default class CarnivalNetworkPlugin extends Plugin {
 	settings: CarnivalConfig;
-	activePerformers: Map<string, CarnivalPerformer> = new Map();
+	public activePerformers: Map<string, CarnivalPerformer> = new Map();
 	private observabilityProvider?: ObservabilityProvider | null;
 	private localRestAPIPublic?: LocalRestAPIPublic | null;
+	private apiRouter?: APIRouter;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -51,9 +54,21 @@ export default class CarnivalNetworkPlugin extends Plugin {
 
 		// Apply observability configuration (register endpoints, initialize providers)
 		await applyObservabilityConfig();
+
+		// Initialize API router (NEW - add this)
+		this.app.workspace.onLayoutReady(async () => {
+			await initializeAPIRouter.call(this);
+		});
 	}
 
 	async onunload(): Promise<void> {
+
+		// Unregister API routes (NEW - add this first)
+		if (this.apiRouter) {
+			this.apiRouter.unregisterRoutes();
+			this.apiRouter = undefined;
+		}
+
 		// Cleanup all active network clients
 		for (const [performerId, performer] of this.activePerformers.entries()) {
 			Log.log(mainLogger, `🎭 Cleaning up performer: ${performerId}`);

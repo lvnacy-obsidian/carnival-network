@@ -54,9 +54,9 @@ export interface RegistryEntry {
  * Territories list response data (API endpoint format)
  */
 export interface TerritoriesListData {
-  territories: TerritoryInfo[];
-  total: number;
-  active: number;
+	territories: TerritoryInfo[];
+	total: number;
+	active: number;
 }
 
 /**
@@ -101,7 +101,7 @@ export interface TerritoryDiscoveryOptions {
  * Subset of Territory interface with only essential fields
  */
 export interface TerritoryInfo {
-  name: string;
-  performerCount: number;
-  status: 'active' | 'inactive';
+	name: string;
+	performerCount: number;
+	status: 'active' | 'inactive';
 }

@@ -72,28 +72,25 @@
  */
 
 import type { App } from 'obsidian';
-import { HttpRegistryService } from './http-registry-service';
 import { ActService } from './services/act-service';
 import { CarnivalQueryService } from './services/carnival-query-service';
+import { HttpRegistryService } from './http-registry-service';
 import { TerritoryAccessService } from './services/territory-access-service';
 import { PersistentPerformerCache } from './persistent-performer-cache';
 import { Log } from '../utils/logger';
 import { getPlugin } from '../utils/plugin-utils';
 import type {
-	CarnivalPerformerInterface,
-	TerritoryServiceInterface,
-	QueryServiceInterface,
-	ActServiceInterface,
-	APIKeyStorage,
-	CarnivalConfig,
-	CarnivalAct,
-	ActQueryOptions,
 	ActCountOptions,
-	SearchOptions,
-	SearchResult,
-	RegistryEntry,
+	ActQueryOptions,
+	APIKeyStorage,
+	CarnivalAct,
+	CarnivalConfig,
+	CarnivalPerformerInterface,
+	LogContext,
 	PerformanceStatus,
-	LogContext
+	RegistryEntry,
+	SearchOptions,
+	SearchResult
 } from '../types/public';
 
 const clientLogger: LogContext = {
@@ -317,19 +314,19 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 	 * ========================================================================
 	 */
 
-	getTerritoryService(): TerritoryServiceInterface {
+	getActService(): ActService {
 		this.ensurePerforming();
-		return this.territoryService;
+		return this.actService;
 	}
 
-	getQueryService(): QueryServiceInterface {
+	getQueryService(): CarnivalQueryService {
 		this.ensurePerforming();
 		return this.queryService;
 	}
 
-	getActService(): ActServiceInterface {
+	getTerritoryService(): HttpRegistryService {
 		this.ensurePerforming();
-		return this.actService;
+		return this.territoryService;
 	}
 
 	/**

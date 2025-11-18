@@ -79,18 +79,18 @@ export interface CarnivalActivity {
  * Combines topology and performance metrics for system monitoring
  */
 export interface CarnivalStatus {
-    health: string;
-    uptime: {
-        milliseconds: number;
-        formatted: string;
-    };
-    network: {
-        totalPerformers: number;
-        connectedPerformers: number;
-        territories: number;
-        activeRegistries: number;
-    };
-    capabilities: string[];
+	health: string;
+	uptime: {
+		milliseconds: number;
+		formatted: string;
+	};
+	network: {
+		totalPerformers: number;
+		connectedPerformers: number;
+		territories: number;
+		activeRegistries: number;
+	};
+	capabilities: string[];
 }
 
 /**

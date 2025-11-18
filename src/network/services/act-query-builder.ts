@@ -1,4 +1,4 @@
-import { ExtendedActQueryOptions } from 'src/types/public';
+import { ExtendedActQueryOptions } from '../../types/public';
 
 /**
  * Act query filter builder
