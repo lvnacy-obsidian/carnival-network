@@ -135,7 +135,7 @@ export interface ICarnivalPerformer {
 // In carnival-records/src/main.ts
 async onload() {
   // 1. Get secure storage
-  const secureStorage = getPlugin(this.app, 'obsidian-secure-storage');
+  const secureStorage = getPlugin(this.app, 'secure-store');
   this.storage = secureStorage.createStorage('carnival-records');
 
   // 2. Get carnival network
@@ -196,7 +196,7 @@ export class SlackWebhookHandler implements WebhookHandlerInterface {
 
 ### Service Renames
 1. `RecordService` → `ActService`
-2. `RegistryAccessService` → `TerritoryAccessService`
+2. `RegistryAccessService` → `PerformerAccessService`
 3. `NetworkQueryService` → `CarnivalQueryService`
 4. `HttpRegistryService` → Keep name (still technically a registry)
 

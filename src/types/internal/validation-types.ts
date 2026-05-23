@@ -12,7 +12,10 @@ import { ValidationError } from './error-types';
 
 export interface ValidationResult {
 	valid: boolean;
-	errors: ValidationError[];
+	errors?: ValidationError[];
+	issueCount?: number;
+	issues?: string[];
+	fixes?: string[];
 }
 
 export interface ValidationRule {

@@ -46,7 +46,7 @@ CarnivalAct
 CarnivalConfig
 CarnivalQueryService
 Territory
-TerritoryAccessService
+PerformerAccessService
 ActService
 ```
 ### Phase 2: File Renames

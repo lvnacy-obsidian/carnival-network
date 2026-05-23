@@ -275,7 +275,7 @@ bulkCreate(records: CarnivalAct[]): Promise<ArchiveBatchResult>
 ```typescript
 export class ActService {
   constructor(
-    private readonly territoryAccess: TerritoryAccessService,
+    private readonly territoryAccess: PerformerAccessService,
     private readonly config: CarnivalConfig,
     archive?: ArchiveInterface // NEW: Optional injection
   ) {

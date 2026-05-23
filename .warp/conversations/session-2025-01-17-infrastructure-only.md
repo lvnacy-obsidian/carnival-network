@@ -58,7 +58,7 @@ Generated documentation headers for five high-impact modules:
 2. **CarnivalQueryService** (`src/network/services/carnival-query-service.ts`)
    - Network analytics, topology, performer status queries
    
-3. **TerritoryAccessService** (`src/network/services/territory-access-service.ts`)
+3. **PerformerAccessService** (`src/network/services/territory-access-service.ts`)
    - Read-only performer cache access with query methods
    
 4. **HttpRegistryService** (`src/network/services/http-registry-service.ts`)

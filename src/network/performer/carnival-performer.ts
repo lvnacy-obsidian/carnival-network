@@ -63,7 +63,7 @@
  * - HttpRegistryService - Territory registration and discovery
  * - ActService - Act creation, broadcasting, and querying
  * - CarnivalQueryService - Network analytics and intelligence
- * - TerritoryAccessService - Read-only performer cache access
+ * - PerformerAccessService - Read-only performer cache access
  * - PersistentPerformerCache - LRU cache of known performers
  * 
  * @see carnival-performer-types.ts - Type definitions
@@ -72,17 +72,18 @@
  */
 
 import type { App } from 'obsidian';
-import { ActService } from './services/act-service';
-import { CarnivalQueryService } from './services/carnival-query-service';
-import { HttpRegistryService } from './http-registry-service';
-import { TerritoryAccessService } from './services/territory-access-service';
+import { ActService } from '../services/act-service';
+import { CarnivalQueryService } from '../services/carnival-query-service';
+import { CarnivalRegistryService } from '../registry/carnival-registry-service';
+import { EndpointHealthMonitor } from '../registry/endpoint-health-monitor';
+import { PerformerAccessService } from './performer-access-service';
 import { PersistentPerformerCache } from './persistent-performer-cache';
-import { Log } from '../utils/logger';
-import { getPlugin } from '../utils/plugin-utils';
+import { Log } from '../../utils/logger';
+import { getPlugin } from '../../utils/plugin-utils';
 import type {
+	LocalRestAPIPlugin,
 	ActCountOptions,
 	ActQueryOptions,
-	APIKeyStorage,
 	CarnivalAct,
 	CarnivalConfig,
 	CarnivalPerformerInterface,
@@ -91,33 +92,34 @@ import type {
 	RegistryEntry,
 	SearchOptions,
 	SearchResult
-} from '../types/public';
-
-const clientLogger: LogContext = {
-	context: 'Carnival Performer',
-	path: '/.obsidian/plugins/carnival-network/network/carnival-network-client'
-};
+} from '../../types/public';
 
 /**
  * Main network client implementation
  * This is what consuming plugins interact with - their ticket to the carnival!
  */
 export class CarnivalPerformer implements CarnivalPerformerInterface {
-	private performing = false;
-	private territoryService: HttpRegistryService;
 	private actService: ActService;
-	private queryService: CarnivalQueryService;
-	private performerCache: PersistentPerformerCache;
-	private territoryAccess: TerritoryAccessService;
+	private clientLogger: LogContext;
 	private currentPerformerId: string | null = null;
+	private performerCache: PersistentPerformerCache;
+	private performing = false;
+	private queryService: CarnivalQueryService;
+	private registryService: CarnivalRegistryService;
+	private territoryAccess: PerformerAccessService;
 
 	constructor(
 		private readonly app: App,
 		private config: CarnivalConfig,
-		private readonly storage: APIKeyStorage,
+		private readonly endpointMonitor: EndpointHealthMonitor,
 		private readonly performerId: string
 	) {
-		Log.log(clientLogger, `🎭 Setting up stage for performer: ${performerId}`);
+		this.clientLogger = {
+			context: 'Carnival Performer',
+			path: `${ app.vault.configDir }/plugins/carnival-network/network/carnival-network-client`
+		};
+
+		Log.log(this.clientLogger, `🎭 Setting up stage for performer: ${performerId}`);
 
 		// Initialize performer cache (the program)
 		this.performerCache = new PersistentPerformerCache(
@@ -133,13 +135,12 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 		);
 
 		// Initialize territory access service
-		this.territoryAccess = new TerritoryAccessService(this.performerCache);
+		this.territoryAccess = new PerformerAccessService(this.app.vault, this.performerCache);
 
 		// Initialize territory service
-		this.territoryService = new HttpRegistryService(
+		this.registryService = new CarnivalRegistryService(
 			this.app,
-			this.config,
-			this.storage,
+			this.endpointMonitor,
 			this.performerCache
 		);
 
@@ -151,6 +152,7 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 
 		// Initialize query service
 		this.queryService = new CarnivalQueryService(
+			this.app.vault,
 			this.territoryAccess,
 			Date.now()
 		);
@@ -164,12 +166,12 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 
 	async enterRing(): Promise<void> {
 		if (this.performing) {
-			Log.warn(clientLogger, `🎭 Already performing: ${this.performerId}`);
+			Log.warn(this.clientLogger, `🎭 Already performing: ${this.performerId}`);
 			return;
 		}
 
 		try {
-			Log.log(clientLogger, `🎪 ${this.performerId} is entering the ring...`);
+			Log.log(this.clientLogger, `🎪 ${this.performerId} is entering the ring...`);
 
 			// Load cached performers (the program)
 			await this.performerCache.loadFromStorage(this.app);
@@ -178,9 +180,9 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 			this.currentPerformerId = this.generatePerformerId();
 
 			this.performing = true;
-			Log.log(clientLogger, `🎉 ${this.performerId} has entered the ring! The show begins!`);
+			Log.log(this.clientLogger, `🎉 ${this.performerId} has entered the ring! The show begins!`);
 		} catch (error) {
-			Log.error(clientLogger, '🎪 Failed to enter the ring:', error);
+			Log.error(this.clientLogger, '🎪 Failed to enter the ring:', error);
 			throw error;
 		}
 	}
@@ -191,21 +193,21 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 		}
 
 		try {
-			Log.log(clientLogger, `🎭 ${this.performerId} is taking a bow...`);
+			Log.log(this.clientLogger, `🎭 ${this.performerId} is taking a bow...`);
 
 			// Save cache before cleanup (preserve the program)
 			await this.performerCache.saveToStorage(this.app);
 
 			// Cleanup services
-			this.territoryService.cleanup();
+			this.registryService.cleanup();
 			this.actService.cleanup();
 
 			this.performing = false;
 			this.currentPerformerId = null;
 
-			Log.log(clientLogger, `👋 ${this.performerId} has left the ring. Until next time!`);
+			Log.log(this.clientLogger, `👋 ${this.performerId} has left the ring. Until next time!`);
 		} catch (error) {
-			Log.error(clientLogger, '🎪 Error during finale:', error);
+			Log.error(this.clientLogger, '🎪 Error during finale:', error);
 		}
 	}
 
@@ -236,15 +238,15 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 			}
 		};
 
-		await this.territoryService.establishTerritory(territory, performerInfo);
-		Log.log(clientLogger, `🎪 Territory established: ${territory} (performer: ${this.currentPerformerId})`);
+		await this.registryService.establishTerritory(territory, performerInfo);
+		Log.log(this.clientLogger, `🎪 Territory established: ${territory} (performer: ${this.currentPerformerId})`);
 	}
 
 	async scoutTerritories(territory: string): Promise<RegistryEntry[]> {
 		this.ensurePerforming();
 		
-		const performers = await this.territoryService.scoutTerritories(territory);
-		Log.log(clientLogger, `🔍 Scouted ${performers.length} performers in ${territory}`);
+		const performers = await this.registryService.scoutTerritories(territory);
+		Log.log(this.clientLogger, `🔍 Scouted ${performers.length} performers in ${territory}`);
 		
 		return performers;
 	}
@@ -254,12 +256,12 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 		
 		const performerId = status.performerId ?? this.currentPerformerId;
 		if (!performerId) {
-			Log.warn(clientLogger, 'Cannot update status: no performer ID available');
+			Log.warn(this.clientLogger, 'Cannot update status: no performer ID available');
 			return;
 		}
 
-		await this.territoryService.sendHeartbeat();
-		Log.log(clientLogger, `💓 Heartbeat sent for performer: ${performerId}`);
+		await this.registryService.sendHeartbeat();
+		Log.log(this.clientLogger, `💓 Heartbeat sent for performer: ${performerId}`);
 	}
 
 	/**
@@ -278,14 +280,14 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 		}
 
 		await this.actService.broadcastAct(act);
-		Log.log(clientLogger, `📢 Act broadcast: "${act.title}" (${act.id})`);
+		Log.log(this.clientLogger, `📢 Act broadcast: "${act.title}" (${act.id})`);
 	}
 
 	async queryActs(options: ActQueryOptions): Promise<CarnivalAct[]> {
 		this.ensurePerforming();
 		
 		const acts = await this.actService.queryActs(options);
-		Log.log(clientLogger, `🎭 Queried ${acts.length} acts from network`);
+		Log.log(this.clientLogger, `🎭 Queried ${acts.length} acts from network`);
 		
 		return acts;
 	}
@@ -294,7 +296,7 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 		this.ensurePerforming();
 		
 		const count = await this.actService.countActs(options);
-		Log.log(clientLogger, `🔢 Counted ${count} acts matching criteria`);
+		Log.log(this.clientLogger, `🔢 Counted ${count} acts matching criteria`);
 		
 		return count;
 	}
@@ -303,7 +305,7 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 		this.ensurePerforming();
 		
 		const results = await this.actService.performSearch(options);
-		Log.log(clientLogger, `🔍 Search returned ${results.length} results for "${options.query}"`);
+		Log.log(this.clientLogger, `🔍 Search returned ${results.length} results for "${options.query}"`);
 		
 		return results;
 	}
@@ -324,9 +326,9 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 		return this.queryService;
 	}
 
-	getTerritoryService(): HttpRegistryService {
+	getTerritoryService(): CarnivalRegistryService {
 		this.ensurePerforming();
-		return this.territoryService;
+		return this.registryService;
 	}
 
 	/**
@@ -344,7 +346,7 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 			...this.config,
 			...config
 		};
-		Log.log(clientLogger, `⚙️ Show configuration updated for: ${this.performerId}`);
+		Log.log(this.clientLogger, `⚙️ Show configuration updated for: ${this.performerId}`);
 	}
 
 	/**
@@ -409,7 +411,7 @@ export class CarnivalPerformer implements CarnivalPerformerInterface {
 
 	private getLocalEndpoint(): string {
 		// Try to get the Local REST API plugin endpoint
-		const localRestApi = getPlugin(this.app, 'obsidian-local-rest-api');
+		const localRestApi = getPlugin<LocalRestAPIPlugin>(this.app, 'obsidian-local-rest-api');
 		
 		if (localRestApi && typeof localRestApi.getEndpoint === 'function') {
 			return localRestApi.getEndpoint();

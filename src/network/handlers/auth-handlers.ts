@@ -1,5 +1,5 @@
 // utils/authentication/auth-handlers.ts
-import { ClientAuthenticationManager, extractClientId } from '../utils/client-authentication';
+import { ClientAuthenticationManager, extractClientId } from '../client-authentication';
 import { Log } from '../../utils/logger';
 import {
 	APIError,

@@ -224,7 +224,7 @@ export class ActService {
   private archive: ArchiveInterface;
   
   constructor(
-    private readonly territoryAccess: TerritoryAccessService,
+    private readonly territoryAccess: PerformerAccessService,
     private readonly config: CarnivalConfig,
     archive?: ArchiveInterface // Optional injection
   ) {

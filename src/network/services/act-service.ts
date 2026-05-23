@@ -17,7 +17,7 @@
  * 
  * Architecture:
  * - Uses ArchiveInterface for pluggable storage (in-memory, cache, database)
- * - Integrates with TerritoryAccessService for performer discovery
+ * - Integrates with PerformerAccessService for performer discovery
  * - Handles network requests with retry logic and circuit breaking
  * - Supports pagination and advanced filtering
  * 
@@ -89,7 +89,7 @@
  * - Storage: Injected ArchiveInterface (defaults to InMemoryArchive)
  * 
  * Dependencies:
- * - TerritoryAccessService - Performer discovery for broadcasting
+ * - PerformerAccessService - Performer discovery for broadcasting
  * - ArchiveInterface - Pluggable storage backend
  * - fetchWithRetry - Network requests with retry logic
  * - Log - Structured logging
@@ -101,7 +101,7 @@
  * 
  * Network Broadcasting Flow:
  * 1. Store act locally via archive
- * 2. Get all performers from TerritoryAccessService
+ * 2. Get all performers from PerformerAccessService
  * 3. Filter by targetTerritories (if not broadcastToAll)
  * 4. Build payload with source, timestamp, requireAck
  * 5. POST to /carnival/network/broadcast on each performer
@@ -130,8 +130,8 @@
  */
 
 import { Log } from '../../utils/logger';
-import { fetchWithRetry } from '../http-client';
-import { TerritoryAccessService } from './territory-access-service';
+import { fetchWithRetry } from '../registry/carnival-registry-utils';
+import { PerformerAccessService } from '../performer/performer-access-service';
 import { InMemoryArchive } from '../../archive/in-memory-archive';
 import {
 	NotFoundError,
@@ -169,7 +169,7 @@ export class ActService implements ActServiceInterface {
 	private archive: ArchiveInterface;
 
 	constructor(
-		private readonly territoryAccess: TerritoryAccessService,
+		private readonly performerAccess: PerformerAccessService,
 		private readonly config: CarnivalConfig,
 		archive?: ArchiveInterface
 	) {
@@ -253,7 +253,7 @@ export class ActService implements ActServiceInterface {
 	 */
 	async broadcastAct(act: CarnivalAct): Promise<void> {
 		try {
-			if (!this.territoryAccess.isAvailable()) {
+			if (!this.performerAccess.isAvailable()) {
 				throw new ServiceUnavailableError(
 					'Registry Service',
 					'Performer registry is not initialized'
@@ -268,7 +268,7 @@ export class ActService implements ActServiceInterface {
 				await this.archive.create(act);
 			}
 			
-			const allPerformers = this.territoryAccess.getAllPerformers();
+			const allPerformers = this.performerAccess.getAllPerformers();
 			let targetPerformers = allPerformers;
 
 			if (!act.syncPreferences.targetTerritories) {

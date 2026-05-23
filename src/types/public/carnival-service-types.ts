@@ -52,10 +52,10 @@ export interface QueryServiceInterface {
 }
 
 /**
- * Territory service interface - handles territory communication
+ * Registry service interface - handles territory communication
  */
 export interface TerritoryServiceInterface {
-	establishTerritory(territory: string, performerInfo: PerformerRegistrationInfo): Promise<void>;
+	establishTerritory(territory: string, performerInfo: PerformerRegistrationInfo, apiKeyMap: Map<string, string>): Promise<void>;
 	scoutTerritories(territory: string): Promise<RegistryEntry[]>;
 	sendHeartbeat(performerId: string): Promise<void>;
 	abandonTerritory(performerId: string): Promise<void>;

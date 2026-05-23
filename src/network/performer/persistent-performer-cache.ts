@@ -104,7 +104,7 @@
  *   Reset all metrics counters
  * 
  * Implementation Details:
- * - Used by: HttpRegistryService, TerritoryAccessService
+ * - Used by: CarnivalRegistryService, PerformerAccessService
  * - Created in: CarnivalPerformer constructor
  * - No interface: Concrete implementation
  * - Storage key: Configurable (default: 'carnival-performer-cache')
@@ -199,7 +199,7 @@
  * Use Cases:
  * 
  * 1. Performer Discovery:
- *    HttpRegistryService queries registries → caches performers → TerritoryAccessService reads
+ *    HttpRegistryService queries registries → caches performers → PerformerAccessService reads
  * 
  * 2. Offline Operation:
  *    Plugin reloads → loadFromStorage() → cache repopulated → network available immediately
@@ -214,26 +214,21 @@
  *    getMetrics() → track hit rate → optimize TTL and size
  * 
  * @see carnival-performers-types.ts - Performer, PerformerCacheEntry, PerformerCacheConfig types
- * @see http-registry-service.ts - Primary writer (discovery)
- * @see territory-access-service.ts - Primary reader (queries)
+ * @see carnival-registry-service.ts - Primary writer (discovery)
+ * @see performer-access-service.ts - Primary reader (queries)
  * @see carnival-performer.ts - Cache initialization
  */
 
-import type { App } from 'obsidian';
-import { Log } from '../utils/logger';
+import { App } from 'obsidian';
+import { Log } from '../../utils/logger';
+import type { CacheStatistics } from '../../types/internal';
 import type {
 	LogContext,
 	Performer,
 	PerformerCacheConfig,
 	PerformerCacheEntry,
 	PerformerCacheMetrics
-} from '../types/public';
-import type { CacheStatistics } from '../types/internal';
-
-const cacheLogger: LogContext = {
-	context: 'Persistent Performer Cache',
-	path: '/.obsidian/plugins/carnival-network/src/network/persistent-performer-cache'
-};
+} from '../../types/public';
 
 /**
  * 🎭 Persistent Performer Cache - LRU cache with TTL and optional persistent backing
@@ -252,6 +247,7 @@ export class PersistentPerformerCache {
 	private metrics: PerformerCacheMetrics;
 	private persistenceInterval?: number;
 	private isDirty = false;
+	private cacheLogger: LogContext;
 
 	constructor(
 		private app: App,
@@ -277,7 +273,18 @@ export class PersistentPerformerCache {
 			memoryUsage: 0
 		};
 
-		this.initializePersistence();
+		this.cacheLogger = {
+			context: 'Persistent Performer Cache',
+			path: `${ app.vault.configDir }/plugins/carnival-network/src/network/persistent-performer-cache`
+		};
+
+		this.initializePersistence().catch(error => {
+			Log.error(
+				this.cacheLogger,
+				'Failed to initialize Persistent Performer Cache.',
+				error
+			);
+		});
 	}
 
 	/**
@@ -285,16 +292,16 @@ export class PersistentPerformerCache {
 	 */
 	private async initializePersistence(): Promise<void> {
 		if (!this.config.persistenceEnabled) {
-			Log.log(cacheLogger, '🎭 Persistent storage disabled - operating in memory-only mode');
+			Log.log(this.cacheLogger, '🎭 Persistent storage disabled - operating in memory-only mode');
 			return;
 		}
 
 		try {
 			await this.loadFromStorage(this.app);
 			this.startBackgroundSave();
-			Log.log(cacheLogger, `🎭 Persistent cache initialized with ${this.cache.size} performers`);
+			Log.log(this.cacheLogger, `🎭 Persistent cache initialized with ${this.cache.size} performers`);
 		} catch (error) {
-			Log.error(cacheLogger, '🎭 Failed to initialize persistence, falling back to memory-only:', error);
+			Log.error(this.cacheLogger, '🎭 Failed to initialize persistence, falling back to memory-only:', error);
 			this.config.persistenceEnabled = false;
 		}
 	}
@@ -331,7 +338,11 @@ export class PersistentPerformerCache {
 	/**
 	 * Set performer in cache
 	 */
-	set(id: string, performer: Performer, ttlMs?: number): void {
+	set(
+		id: string,
+		performer: Performer,
+		ttlMs?: number
+	): void {
 		this.metrics.totalOperations++;
 		const now = Date.now();
 		const ttl = ttlMs ?? this.config.defaultTtlMs;
@@ -467,7 +478,7 @@ export class PersistentPerformerCache {
 		this.accessOrder.shift();
 		this.metrics.evictions++;
 		
-		Log.log(cacheLogger, `🎭 Evicted LRU performer: ${entry?.performer.name ?? lruId}`);
+		Log.log(this.cacheLogger, `🎭 Evicted LRU performer: ${entry?.performer.name ?? lruId}`);
 	}
 
 	/**
@@ -508,9 +519,16 @@ export class PersistentPerformerCache {
 			clearInterval(this.persistenceInterval);
 		}
 
-		this.persistenceInterval = window.setInterval(async () => {
+		this.persistenceInterval = window.setInterval(() => {
 			if (this.isDirty) {
-				await this.saveToStorage(this.app);
+				this.saveToStorage(this.app)
+					.catch(error => {
+						Log.error(
+							this.cacheLogger,
+							'Failed to save to store.',
+							error
+						);
+					});
 			}
 		}, this.config.backgroundSaveIntervalMs);
 	}
@@ -524,8 +542,13 @@ export class PersistentPerformerCache {
 		}
 
 		try {
-			const data = await app.vault.adapter.read(`${this.config.persistenceKey}.json`);
+			const data = await app.vault.adapter.read(`${ this.config.persistenceKey }.json`);
 			const parsed = JSON.parse(data);
+
+			if (!parsed || parsed === null) {
+				Log.warn(this.cacheLogger, 'Vault data incorrectly parsed, or no data is available to parse');
+				return;
+			}
 			
 			this.metrics.storageReads++;
 
@@ -542,12 +565,12 @@ export class PersistentPerformerCache {
 				this.cleanupExpired();
 			}
 
-			Log.log(cacheLogger, `🎭 Loaded ${this.cache.size} performers from persistent storage`);
+			Log.log(this.cacheLogger, `🎭 Loaded ${this.cache.size} performers from persistent storage`);
 		} catch (error) {
 			if (error.message.includes('ENOENT')) {
-				Log.log(cacheLogger, '🎭 No existing cache file found - starting fresh');
+				Log.log(this.cacheLogger, '🎭 No existing cache file found - starting fresh');
 			} else {
-				Log.error(cacheLogger, '🎭 Failed to load from storage:', error);
+				Log.error(this.cacheLogger, '🎭 Failed to load from storage:', error);
 			}
 		}
 	}
@@ -573,9 +596,9 @@ export class PersistentPerformerCache {
 			this.isDirty = false;
 			this.metrics.storageWrites++;
 			
-			Log.log(cacheLogger, `🎭 Saved ${this.cache.size} performers to persistent storage`);
+			Log.log(this.cacheLogger, `🎭 Saved ${this.cache.size} performers to persistent storage`);
 		} catch (error) {
-			Log.error(cacheLogger, '🎭 Failed to save to storage:', error);
+			Log.error(this.cacheLogger, '🎭 Failed to save to storage:', error);
 			// Don't disable persistence on single failure - might be temporary
 		}
 	}
@@ -645,13 +668,13 @@ export class PersistentPerformerCache {
 	/**
 	 * Update cache configuration
 	 */
-	updateConfig(config: Partial<PerformerCacheConfig>): void {
+	async updateConfig(config: Partial<PerformerCacheConfig>): Promise<void> {
 		this.config = { ...this.config, ...config };
 		
 		// If persistence was enabled/disabled, handle appropriately
 		if (config.persistenceEnabled !== undefined) {
 			if (config.persistenceEnabled && !this.persistenceInterval) {
-				this.initializePersistence();
+				await this.initializePersistence();
 			} else if (!config.persistenceEnabled && this.persistenceInterval) {
 				clearInterval(this.persistenceInterval);
 				this.persistenceInterval = undefined;
@@ -663,7 +686,7 @@ export class PersistentPerformerCache {
 			this.startBackgroundSave();
 		}
 
-		Log.log(cacheLogger, '🎭 Cache configuration updated:', config);
+		Log.log(this.cacheLogger, '🎭 Cache configuration updated:', config);
 	}
 
 	/**
@@ -706,7 +729,13 @@ export class PersistentPerformerCache {
 		page: number,
 		pageSize: number,
 		predicate?: (performer: Performer) => boolean
-	): { items: Performer[]; total: number; page: number; pageSize: number; pages: number } {
+	): {
+		items: Performer[];
+		total: number;
+		page: number;
+		pageSize: number;
+		pages: number
+	} {
 		this.metrics.totalOperations++;
 		
 		const performers = predicate ? this.filter(predicate) : this.values();
@@ -758,6 +787,6 @@ export class PersistentPerformerCache {
 		}
 		
 		this.clear();
-		Log.log(cacheLogger, '🎭 Performer cache cleanup complete');
+		Log.log(this.cacheLogger, '🎭 Performer cache cleanup complete');
 	}
 }

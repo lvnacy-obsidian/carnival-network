@@ -13,11 +13,17 @@
  * 
  * Index of exports:
  * - ExpressIRoute
+ * - LocalRestAPIPlugin
  * - LocalRestAPIPublic
  * - LocalRestAPIRequest
  * - LocalRestAPIResponse
  * - LocalRestAPIRouteHandler
  */
+
+import {
+	Plugin,
+	PluginManifest
+} from 'obsidian';
 
 /**
  * Minimal type definition for an Express IRoute object.
@@ -31,6 +37,13 @@ export interface ExpressIRoute {
 	patch(handler: (req: unknown, res: unknown) => void | Promise<void>): ExpressIRoute;
 	head(handler: (req: unknown, res: unknown) => void | Promise<void>): ExpressIRoute;
 	all(handler: (req: unknown, res: unknown) => void | Promise<void>): ExpressIRoute;
+}
+
+/**
+ * Public API exposed by obsidian-local-rest-api plugin
+ */
+export interface LocalRestAPIPlugin extends Plugin {
+	getPublicApi(manifest: PluginManifest): LocalRestAPIPublic | null;
 }
 
 /**

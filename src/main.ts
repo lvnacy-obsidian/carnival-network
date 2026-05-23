@@ -1,89 +1,168 @@
 // src/main.ts
-import { Plugin } from 'obsidian';
-import { CarnivalPerformer } from './network/carnival-performer';
 import {
-	applyObservabilityConfig,
-	initializeAPIRouter,
-	joinCarnival,
-	leaveCarnival
-} from './network/carnival-troupe-manager';
-import { APIRouter } from './api/api-router';
+	Notice,
+	Plugin
+} from 'obsidian';
+import { CarnivalPerformer } from './network/performer/carnival-performer';
+import { ObservabilityManager } from './network/services/observability/observability-manager';
+import { CarnivalRegistryManager } from './network/carnival-registry-manager';
+import {
+	APIRouter,
+	initializeAPIRouter
+} from './api/api-router';
+import { CarnivalStatusMonitor } from './network/observability/carnival-status-monitor';
 import { CarnivalNetworkSettingsTab } from './ui/settings-tab';
+import {
+	LeaveTerritoryModal,
+	PrimaryTerritorySelectorModal,
+	TerritoryManagementModal,
+	TerritorySelectionModal
+} from './ui/modals';
 import { Log } from './utils/logger';
-import { getPlugin } from './utils/plugin-utils';
+import { verifyDependencies } from './utils/plugin-utils';
 import type {
-	APIKeyStorage,
+	APIKeyStore,
 	CarnivalConfig,
+	CarnivalNetworkSettings,
 	CarnivalPerformerInterface,
-	ObservabilityProvider,
-	LocalRestAPIPublic
+	LocalRestAPIPublic,
+	LogContext,
+	ObservabilityProvider
 } from './types/public';
 
-const mainLogger = {
-	context: 'Carnival Network Plugin',
-	path: '/.obsidian/plugins/carnival-network/main'
-};
-
-interface CarnivalNetworkSettings {
-	enableDebugLogging: boolean;
-	registeredPerformers: string[]; // Plugins using the network are "performers"
-}
-
 const DEFAULT_SETTINGS: CarnivalNetworkSettings = {
-	enableDebugLogging: false,
-	registeredPerformers: []
+	enableDebugLogging: false
 };
 
 export default class CarnivalNetworkPlugin extends Plugin {
-	settings: CarnivalConfig;
+	private routeManager?: APIRouter;
+	private mainLogger: LogContext = {
+		context: 'Carnival Network Plugin | onload',
+		path: `${ this.app.vault.configDir }/plugins/carnival-network/src/main`
+	};
 	public activePerformers: Map<string, CarnivalPerformer> = new Map();
-	private observabilityProvider?: ObservabilityProvider | null;
-	private localRestAPIPublic?: LocalRestAPIPublic | null;
-	private apiRouter?: APIRouter;
+	public localRestAPIPublic?: LocalRestAPIPublic | null;
+	public observabilityManager: ObservabilityManager;
+	public observabilityProvider?: ObservabilityProvider | null;
+	public performerTerritories: string[];
+	public registeredPerformers: string[];
+	public registryEndpoints: string[]; // solely managed by the Booking Coordinator (Carnival Registry Manager)
+	public registryManager: CarnivalRegistryManager;
+	public settings: CarnivalConfig;
+	public statusMonitor?: CarnivalStatusMonitor;
 
 	async onload(): Promise<void> {
+
 		await this.loadSettings();
 
-		Log.log(mainLogger, '🎪 Carnival Network Plugin loaded');
+		Log.log(this.mainLogger, '🎪 Carnival Network Plugin loaded');
+
+		this.observabilityManager = new ObservabilityManager(this);
+		this.registryManager = new CarnivalRegistryManager(this);
 
 		// Add settings tab
 		this.addSettingTab(new CarnivalNetworkSettingsTab(this.app, this, this.settings));
 
-		// Verify Local REST API plugin is available
-		this.verifyDependencies();
+		// ✅ ADD TERRITORY COMMANDS
+		this.addCommand({
+			id: 'create-join-territory',
+			name: 'Create or Join Territory',
+			callback: () => {
+				const modal = new TerritorySelectionModal(this.app, this);
+				modal.open();
+			}
+		});
+		
+		this.addCommand({
+			id: 'manage-territories',
+			name: 'Manage Territory Assignments',
+			callback: () => {
+				const modal = new TerritoryManagementModal(this.app, this);
+				modal.open();
+			}
+		});
+		
+		this.addCommand({
+			id: 'set-primary-territory',
+			name: 'Set Primary Territory',
+			callback: () => {
+				const assigned = this.performerTerritories || [];
+	
+				if (assigned.length === 0) {
+					new Notice('No territories assigned. Join a territory first.');
+					return;
+				}
+				
+				if (assigned.length === 1) {
+					new Notice(`${assigned[0]} is already your only (and primary) territory.`);
+					return;
+				}
+				
+				const modal = new PrimaryTerritorySelectorModal(this.app, this, assigned);
+				modal.open();
+			}
+		});
+		
+		this.addCommand({
+			id: 'leave-territory',
+			name: 'Leave Territory',
+			callback: () => {
+				const assigned = this.performerTerritories || [];
+	
+				if (assigned.length === 0) {
+					new Notice('Not assigned to any territories.');
+					return;
+				}
+				
+				const modal = new LeaveTerritoryModal(this.app, this, assigned);
+				modal.open();
+			}
+		});
 
-		// Apply observability configuration (register endpoints, initialize providers)
-		await applyObservabilityConfig();
-
-		// Initialize API router (NEW - add this)
+		// Initialize API router
 		this.app.workspace.onLayoutReady(async () => {
-			await initializeAPIRouter.call(this);
+			// Verify Local REST API plugin is available
+			verifyDependencies('obsidian-local-rest-api', this.app, this.mainLogger);
+			verifyDependencies('secure-store', this.app, this.mainLogger);
+
+			// Apply observability configuration (register endpoints, initialize providers)
+			await this.observabilityManager.applyObservabilityConfig();
+
+			// initialize the API router
+			this.routeManager = initializeAPIRouter(this.app, this, this.manifest);
+
+			// Initialize status monitor
+			this.statusMonitor = new CarnivalStatusMonitor(this);
 		});
 	}
 
-	async onunload(): Promise<void> {
+	onunload(): void {
 
 		// Unregister API routes (NEW - add this first)
-		if (this.apiRouter) {
-			this.apiRouter.unregisterRoutes();
-			this.apiRouter = undefined;
+		if (this.routeManager) {
+			this.routeManager.unregisterRoutes();
+			this.routeManager = undefined;
 		}
 
 		// Cleanup all active network clients
 		for (const [performerId, performer] of this.activePerformers.entries()) {
-			Log.log(mainLogger, `🎭 Cleaning up performer: ${performerId}`);
-			await performer.leaveRing();
+			Log.log(this.mainLogger, `🎭 Cleaning up performer: ${performerId}`);
+			performer.leaveRing().catch(error => {
+				Log.error(this.mainLogger, 'Error leaving the ring.', error);
+			});
 		}
 		this.activePerformers.clear();
 
 		// Cleanup observability provider and unregister metrics endpoint
 		try {
 			if (this.observabilityProvider) {
-				await this.observabilityProvider.cleanup();
+				this.observabilityProvider.cleanup().catch(error => {
+					Log.error(this.mainLogger, 'Error cleaning up observability provider.', error);
+				});
 				this.observabilityProvider = null;
 			}
 		} catch (err) {
-			Log.warn(mainLogger, 'Error cleaning up observability provider:', err);
+			Log.warn(this.mainLogger, 'Error cleaning up observability provider:', err);
 		}
 
 		try {
@@ -92,10 +171,13 @@ export default class CarnivalNetworkPlugin extends Plugin {
 				this.localRestAPIPublic = null;
 			}
 		} catch (err) {
-			Log.warn(mainLogger, 'Error unregistering Local REST API extension:', err);
+			Log.warn(this.mainLogger, 'Error unregistering Local REST API extension:', err);
 		}
 
-		Log.log(mainLogger, '🎪 Carnival Network Plugin unloaded');
+		// Cleanup status monitor
+		this.statusMonitor?.cleanup();
+
+		Log.log(this.mainLogger, '🎪 Carnival Network Plugin unloaded');
 	}
 
 	async loadSettings(): Promise<void> {
@@ -106,33 +188,69 @@ export default class CarnivalNetworkPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	private verifyDependencies(): void {
-		const localRestApi = getPlugin(this.app, 'obsidian-local-rest-api');
-		
-		if (!localRestApi) {
-			Log.warn(mainLogger, 
-				'🎪 Local REST API plugin not found. The carnival cannot begin until it is installed!'
-			);
-		} else {
-			Log.log(mainLogger, '🎪 Dependencies verified: Local REST API plugin found. Let the show begin!');
-		}
-	}
-
 	/**
 	 * Public API: Allow other plugins to join the carnival network
 	 */
-	joinCarnival(
+	async joinCarnival(
 		performerId: string,
-		storage: APIKeyStorage,
+		store: APIKeyStore,
 		config: CarnivalConfig
-	): CarnivalPerformerInterface {
-		return joinCarnival.call(this, performerId, storage, config);
+	): Promise<CarnivalPerformerInterface> {
+		// Check if performer already exists
+		if (this.activePerformers.has(performerId)) {
+			Log.warn(this.mainLogger, `🎭 Performer already exists for: ${ performerId }`);
+			return this.activePerformers.get(performerId) as CarnivalPerformerInterface;
+		}
+	
+		// Verify dependencies before creating client
+		const localRestApi = verifyDependencies('obsidian-local-rest-api', this.app, this.mainLogger);
+		const secureStore = verifyDependencies('secure-store', this.app, this.mainLogger);
+		
+		if (!localRestApi || !secureStore) {
+			throw new Error(
+				`🎪 Carnival Network requires Local REST API and Secure Store plugins. 
+				Please install them from Community Plugins to join the show!`
+			);
+		}
+	
+		// Create new network client (performer)
+		const performer = new CarnivalPerformer(
+			this.app,
+			config,
+			endpointManager,
+			performerId
+		);
+	
+		// Track the performer
+		this.activePerformers.set(performerId, performer);
+		
+		// Update settings
+		if (!this.registeredPerformers.includes(performerId)) {
+			this.registeredPerformers.push(performerId);
+			await this.saveSettings();
+		}
+	
+		Log.log(this.mainLogger, `🎭 New performer joined the carnival: ${performerId}`);
+	
+		return performer;
 	}
 
 	/**
-	 * Public API: Allow performers to leave the carnival network
+	 * Remove a performer (cleanup without destroying it)
 	 */
 	async leaveCarnival(performerId: string): Promise<void> {
-		await leaveCarnival.call(this, performerId);
+		const performer = this.activePerformers.get(performerId);
+		if (performer) {
+			await performer.cleanup();
+			this.activePerformers.delete(performerId);
+			
+			// Update settings
+			this.registeredPerformers = this.registeredPerformers.filter(
+				(id: string) => id !== performerId
+			);
+			await this.saveSettings();
+
+			Log.log(this.mainLogger, `🎭 Performer left the carnival: ${performerId}`);
+		}
 	}
 }

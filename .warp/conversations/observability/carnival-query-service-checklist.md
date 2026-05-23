@@ -194,7 +194,7 @@ byType: {
 - [ ] Provider-specific formatter tests
 
 ### Integration Tests
-- [ ] TerritoryAccessService integration
+- [ ] PerformerAccessService integration
 - [ ] ActService integration
 - [ ] Error handling scenarios
 - [ ] Invalid query type handling

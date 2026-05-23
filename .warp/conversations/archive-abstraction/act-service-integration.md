@@ -24,7 +24,7 @@ private actsByTerritory: Map<string, Set<string>> = new Map();
 private archive: ArchiveInterface;
 
 constructor(
-  territoryAccess: TerritoryAccessService,
+  territoryAccess: PerformerAccessService,
   config: CarnivalConfig,
   archive?: ArchiveInterface // Injectable for testing
 ) {
@@ -436,7 +436,7 @@ const service = new ActService(territoryAccess, config, archive);
 1. **Async Conversion** - All methods needed Promise wrappers
 2. **Search Logic** - Had to keep local filtering for multi-criteria search
 3. **Seed Data** - Needed to convert from sync to async seeding
-4. **Test Setup** - Required mock TerritoryAccessService
+4. **Test Setup** - Required mock PerformerAccessService
 
 ### Future Improvements
 

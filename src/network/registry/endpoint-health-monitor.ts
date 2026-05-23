@@ -1,8 +1,8 @@
-import { CircuitBreaker } from './circuit-breaker';
+import { CircuitBreaker } from '../services/circuit-breaker';
 import type {
 	CircuitBreakerConfig,
 	CircuitState
-} from '../types/internal';
+} from '../../types/internal';
 
 /**
  * 🎪 Registry endpoint state manager with circuit breaker
@@ -10,7 +10,7 @@ import type {
  * Manages circuit breakers for each registry endpoint to provide
  * fault tolerance and automatic recovery from failing endpoints.
  */
-export class RegistryEndpointManager {
+export class EndpointHealthMonitor {
 	private breakers: Map<string, CircuitBreaker> = new Map();
 	private defaultOptions: CircuitBreakerConfig = {
 		failureThreshold: 3,

@@ -141,7 +141,7 @@ Nomenclature: 100% carnival-themed
     // After: returns concrete classes
     getActService(): ActService { ... }
     getQueryService(): CarnivalQueryService { ... }
-    getTerritoryService(): TerritoryAccessService { ... }
+    getTerritoryService(): PerformerAccessService { ... }
     ```
 
 **6. Plugin Integration**
@@ -317,7 +317,7 @@ manifest.json                              # Version update to 1.0.0
 - ✅ Generated documentation headers for high-impact modules:
   - `ActService` - Act creation, broadcasting, querying, search
   - `CarnivalQueryService` - Network analytics, topology, performer status
-  - `TerritoryAccessService` - Read-only performer cache access
+  - `PerformerAccessService` - Read-only performer cache access
   - `HttpRegistryService` - Territory registration and discovery
   - `PersistentPerformerCache` - LRU cache with vault persistence
 - ✅ Headers include: purpose, responsibilities, architecture context, complete API documentation, implementation details, data flows, performance characteristics

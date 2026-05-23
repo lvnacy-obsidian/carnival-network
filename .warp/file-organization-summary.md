@@ -44,7 +44,7 @@ These files exist but need carnival theme applied:
    - Update type imports: `CrossVaultRecord` → `CarnivalAct`
 
 2. **`src/network/services/registry-access-service.ts`** → **`territory-access-service.ts`**
-   - Rename class: `RegistryAccessService` → `TerritoryAccessService`
+   - Rename class: `RegistryAccessService` → `PerformerAccessService`
    - Update type imports: `RegistryNode` → `RegistryEntry`
 
 3. **`src/network/services/network-query-service.ts`** → **`carnival-query-service.ts`**

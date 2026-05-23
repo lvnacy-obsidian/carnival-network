@@ -2,7 +2,6 @@ import { RateLimitError } from '../../errors';
 import { Log } from '../../utils/logger';
 import type {
 	GuestPerformer,
-	RateLimit
 } from '../../types/public';
 
 const rateLimiterLogger = {

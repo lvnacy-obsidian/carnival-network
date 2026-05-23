@@ -94,7 +94,7 @@ The Carnival Network operates through **five core pillars** that handle differen
 
 **Key Components:**
 - `HttpRegistryService` - Communicates with external HTTP registry endpoints
-- `TerritoryAccessService` - Provides read-only access to cached performer data
+- `PerformerAccessService` - Provides read-only access to cached performer data
 - `PersistentPerformerCache` - LRU cache of known performers (persisted to vault)
 
 **Data Flow:**
@@ -103,7 +103,7 @@ Plugin → establishTerritory() → HttpRegistryService
     ↓
 Registry Endpoint (HTTP)
     ↓
-Response → PersistentPerformerCache → TerritoryAccessService
+Response → PersistentPerformerCache → PerformerAccessService
     ↓
 Other Services (ActService, CarnivalQueryService)
 ```
@@ -173,13 +173,13 @@ CarnivalAct {
 
 **Key Components:**
 - `CarnivalQueryService` - Network topology, analytics, status
-- `TerritoryAccessService` - Read access to performer cache
+- `PerformerAccessService` - Read access to performer cache
 
 **Data Flow:**
 ```
 Plugin → getQueryService() → CarnivalQueryService
     ↓
-TerritoryAccessService.getAllPerformers()
+PerformerAccessService.getAllPerformers()
     ↓
 Process/aggregate data
     ↓

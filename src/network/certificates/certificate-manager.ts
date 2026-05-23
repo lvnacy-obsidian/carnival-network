@@ -7,29 +7,32 @@
  */
 
 
-import { Log } from '../utils/logger';
+import { Log } from '../../utils/logger';
 import type {
 	CertificateInfo,
 	TrustedCertificate
-} from '../types/internal';
-import type { TLSConfig } from '../types/public';
-
-const certStoreLogger = {
-	context: 'Certificate Store',
-	path: '/.obsidian/plugins/carnival-records/src/network/certificate-store'
-};
+} from '../../types/internal';
+import type {
+	LogContext,
+	TLSConfig
+} from '../../types/public';
 
 /**
  * Certificate Trust Store
  * 
  * Manages trusted certificates for registry communication
  */
-export class CertificateStore {
+export class CertificateManager {
 	private trustedCertificates: Map<string, TrustedCertificate> = new Map();
 	private revokedCertificates: Set<string> = new Set();
+	private certStoreLogger: LogContext;
 
 	constructor() {
 		this.loadDefaultTrustedCAs();
+		this.certStoreLogger = {
+			context: 'Certificate Manager',
+			path: `config_root/plugins/carnival-network/src/network/certificate-manager`
+		};
 	}
 
 	private loadDefaultTrustedCAs(): void {
@@ -49,11 +52,11 @@ export class CertificateStore {
 					);
 				}
 			} catch (error) {
-				Log.warn(certStoreLogger, `Failed to load default CA ${ca.name}:`, error);
+				Log.warn(this.certStoreLogger, `Failed to load default CA ${ca.name}:`, error);
 			}
 		}
 		
-		Log.log(certStoreLogger, `Certificate store initialized with ${defaultTrustedCAs.length} default CAs`);
+		Log.log(this.certStoreLogger, `Certificate store initialized with ${defaultTrustedCAs.length} default CAs`);
 	}
 
 	/**
@@ -66,7 +69,7 @@ export class CertificateStore {
 			const cert = this.parsePEMCertificate(pemData);
 			return cert;
 		} catch (error) {
-			Log.error(certStoreLogger, 'Failed to parse certificate:', error);
+			Log.error(this.certStoreLogger, 'Failed to parse certificate:', error);
 			return null;
 		}
 	}
@@ -98,7 +101,7 @@ export class CertificateStore {
 		};
 
 		this.trustedCertificates.set(cert.fingerprint, trustedCert);
-		Log.log(certStoreLogger, `Added certificate to trust store: ${cert.commonName} (${cert.fingerprint.substring(0, 16)}...)`);
+		Log.log(this.certStoreLogger, `Added certificate to trust store: ${cert.commonName} (${cert.fingerprint.substring(0, 16)}...)`);
 	}
 
 	/**
@@ -110,7 +113,7 @@ export class CertificateStore {
 			cert.trustLevel = 'revoked';
 			cert.trusted = false;
 			this.revokedCertificates.add(fingerprint);
-			Log.warn(certStoreLogger, `Revoked certificate: ${cert.name} - ${reason ?? 'No reason provided'}`);
+			Log.warn(this.certStoreLogger, `Revoked certificate: ${cert.name} - ${reason ?? 'No reason provided'}`);
 		}
 	}
 
@@ -284,7 +287,7 @@ export class CertificateStore {
 				}
 			}
 
-			Log.log(certStoreLogger, `Imported ${imported} certificates with ${errors.length} errors`);
+			Log.log(this.certStoreLogger, `Imported ${imported} certificates with ${errors.length} errors`);
 
 		} catch (error) {
 			errors.push(`Failed to parse import data: ${ error }`);
@@ -481,4 +484,4 @@ HMUfpIBvFSDJ3gyICh3WZlXi/EjJKSZp4A==
 /**
  * Global certificate store instance
  */
-export const certificateStore = new CertificateStore();
+export const certificateManager = new CertificateManager();

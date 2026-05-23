@@ -70,9 +70,28 @@ export * from './app-plugin-filler';
 export * from './archive-types';
 
 /**
+ * Authentication exports
+ * - BackstageAccess
+ * - BackstagePass
+ * - CARNIVAL_AUTH_CONSTANTS
+ * - CreateBackstagePassConfig
+ * - CredentialContext
+ * - DEFAULT_TICKET_TIERS
+ * - PerformanceTicket
+ * - PerformerTitle
+ * - RefreshToken
+ * - SignedWebhookPayload
+ * - TicketTier
+ * - TokenScope
+ * - WebhookSignature
+ */
+export * from './authentication-types';
+
+/**
  * Carnival Configuration exports
  * - APIKeyConfig
  * - CarnivalConfig
+ * - CarnivalNetworkSettings
  * - RateLimitConfig
  * - TLSConfig
  * - WebhookConfig
@@ -176,8 +195,24 @@ export * from './search-types';
 /**
  * Secure Store exports
  * - APIKeyStorage
+ * - SecureStorePlugin
+ * - isSecureStorePlugin
  */
 export * from './secure-store-types';
+
+/**
+ * Territory Manager exports
+ * - DEFAULT_TERRITORY_CONFIG
+ * - AssignPerformerRequest
+ * - CreateTerritoryRequest
+ * - PerformerTerritoryInfo
+ * - TerritoryAssignment
+ * - TerritoryCacheConfig
+ * - TerritorySummary
+ * - TerritoryWithCount
+ * - UpdateTerritoryRequest
+ */
+export * from './territory-types';
 
 /**
  * Webhook types exports

@@ -1,9 +1,9 @@
-import { Log } from '../utils/logger';
-import { CircuitOpenError } from '../errors/circuit-open-error';
+import { Log } from '../../utils/logger';
+import { CircuitOpenError } from '../../errors/circuit-open-error';
 import type {
 	CircuitBreakerConfig,
 	CircuitState
-} from '../types/internal';
+} from '../../types/internal';
 
 /**
  * 🎪 Circuit breaker for managing endpoint health

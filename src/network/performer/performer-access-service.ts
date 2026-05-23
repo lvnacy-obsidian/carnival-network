@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * TERRITORY ACCESS SERVICE - Read-Only Performer Cache Access
+ * PERFORMER ACCESS SERVICE - Read-Only Performer Cache Access
  * ============================================================================
  * 
  * Provides centralized, read-only access to the performer cache with convenient
@@ -23,7 +23,7 @@
  * - Used by services that need performer discovery (ActService, CarnivalQueryService)
  * 
  * Exports:
- * - TerritoryAccessService (class) - Read-only cache access facade
+ * - PerformerAccessService (class) - Read-only cache access facade
  * 
  * Public API Methods:
  * 
@@ -141,17 +141,13 @@
  * @see carnival-query-service.ts - Primary consumer (analytics)
  */
 
+import { Vault } from 'obsidian';
 import { Log } from '../../utils/logger';
-import { PersistentPerformerCache } from '../persistent-performer-cache';
+import { PersistentPerformerCache } from './persistent-performer-cache';
 import type {
 	LogContext,
 	RegistryEntry
 } from '../../types/public';
-
-const territoryLogger: LogContext = {
-	context: 'Territory Access Service',
-	path: '/.obsidian/plugins/carnival-network/services/territory-access-service'
-};
 
 /**
  * 🎪 Provides centralized access to performer data from the cache
@@ -159,8 +155,18 @@ const territoryLogger: LogContext = {
  * This service wraps the performer cache and provides convenient
  * query methods for accessing performer data by various criteria.
  */
-export class TerritoryAccessService {
-	constructor(private readonly performerCache: PersistentPerformerCache) {}
+export class PerformerAccessService {
+	private performerAccessLogger: LogContext;
+
+	constructor(
+		private vault: Vault,
+		private readonly performerCache: PersistentPerformerCache
+	) {
+		this.performerAccessLogger = {
+			context: 'Performer Access Service',
+			path: `${ this.vault.configDir }/plugins/carnival-network/services/territory-access-service`
+		};
+	}
 
 	/**
 	 * Clear cached data
@@ -168,9 +174,9 @@ export class TerritoryAccessService {
 	clearCache(): void {
 		try {
 			this.performerCache.clear();
-			Log.log(territoryLogger, '🎪 Cache cleared');
+			Log.log(this.performerAccessLogger, '🎪 Cache cleared');
 		} catch (error) {
-			Log.error(territoryLogger, '🎪 Failed to clear cache:', error);
+			Log.error(this.performerAccessLogger, '🎪 Failed to clear cache:', error);
 		}
 	}
 
@@ -182,7 +188,7 @@ export class TerritoryAccessService {
 			const performers = this.performerCache.values();
 			return performers.map(p => this.performerToRegistryEntry(p));
 		} catch (error) {
-			Log.error(territoryLogger, '🎪 Failed to get all performers:', error);
+			Log.error(this.performerAccessLogger, '🎪 Failed to get all performers:', error);
 			return [];
 		}
 	}
@@ -196,7 +202,7 @@ export class TerritoryAccessService {
 			const territories = new Set(performers.map(p => p.territory));
 			return Array.from(territories);
 		} catch (error) {
-			Log.error(territoryLogger, '🎪 Failed to get territories:', error);
+			Log.error(this.performerAccessLogger, '🎪 Failed to get territories:', error);
 			return [];
 		}
 	}
@@ -209,7 +215,7 @@ export class TerritoryAccessService {
 			const performer = this.performerCache.get(performerId);
 			return performer ? this.performerToRegistryEntry(performer) : null;
 		} catch (error) {
-			Log.error(territoryLogger, `🎪 Failed to get performer ${performerId}:`, error);
+			Log.error(this.performerAccessLogger, `🎪 Failed to get performer ${performerId}:`, error);
 			return null;
 		}
 	}
@@ -221,7 +227,7 @@ export class TerritoryAccessService {
 		try {
 			return this.performerCache.size();
 		} catch (error) {
-			Log.error(territoryLogger, '🎪 Failed to get performer count:', error);
+			Log.error(this.performerAccessLogger, '🎪 Failed to get performer count:', error);
 			return 0;
 		}
 	}
@@ -240,7 +246,7 @@ export class TerritoryAccessService {
 			
 			return counts;
 		} catch (error) {
-			Log.error(territoryLogger, '🎪 Failed to get performer counts by territory:', error);
+			Log.error(this.performerAccessLogger, '🎪 Failed to get performer counts by territory:', error);
 			return {};
 		}
 	}
@@ -255,7 +261,7 @@ export class TerritoryAccessService {
 				.filter(performer => performer.capabilities.includes(capability))
 				.map(p => this.performerToRegistryEntry(p));
 		} catch (error) {
-			Log.error(territoryLogger, `🎪 Failed to get performers with capability ${capability}:`, error);
+			Log.error(this.performerAccessLogger, `🎪 Failed to get performers with capability ${capability}:`, error);
 			return [];
 		}
 	}
@@ -270,7 +276,7 @@ export class TerritoryAccessService {
 				.filter(performer => performer.territory === territory)
 				.map(p => this.performerToRegistryEntry(p));
 		} catch (error) {
-			Log.error(territoryLogger, `🎪 Failed to get performers for territory ${territory}:`, error);
+			Log.error(this.performerAccessLogger, `🎪 Failed to get performers for territory ${territory}:`, error);
 			return [];
 		}
 	}
@@ -282,7 +288,7 @@ export class TerritoryAccessService {
 		try {
 			return this.performerCache.size() > 0;
 		} catch (error) {
-			Log.error(territoryLogger, '🎪 Failed to check availability:', error);
+			Log.error(this.performerAccessLogger, '🎪 Failed to check availability:', error);
 			return false;
 		}
 	}

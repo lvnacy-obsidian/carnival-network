@@ -157,7 +157,7 @@ Periodically:
   - Update PersistentPerformerCache
 ```
 
-### Cache Query Flow (TerritoryAccessService)
+### Cache Query Flow (PerformerAccessService)
 ```
 Client requests performers
   ↓
@@ -176,23 +176,23 @@ Return results
 
 ## Key Relationships
 
-### `HttpRegistryService` → `TerritoryAccessService`
-- **Direction**: HttpRegistryService populates cache that TerritoryAccessService queries
-- **Data Flow**: Network discovery writes to PersistentPerformerCache; TerritoryAccessService reads from it
+### `HttpRegistryService` → `PerformerAccessService`
+- **Direction**: HttpRegistryService populates cache that PerformerAccessService queries
+- **Data Flow**: Network discovery writes to PersistentPerformerCache; PerformerAccessService reads from it
 - **Separation of Concerns**: 
   - HttpRegistryService: Active network management
-  - TerritoryAccessService: Passive read-only queries
+  - PerformerAccessService: Passive read-only queries
 
 ### Both Services → `PersistentPerformerCache`
 - **HttpRegistryService**: Writes discovered performers to cache
-- **TerritoryAccessService**: Reads performer data from cache
+- **PerformerAccessService**: Reads performer data from cache
 - **Independence**: Each service can be used independently
   - HttpRegistryService for coordination/discovery
-  - TerritoryAccessService for read-only queries
+  - PerformerAccessService for read-only queries
 
 ### `TerritoryServiceInterface` → Implementations
 - **HttpRegistryService**: Full implementation of the interface (6/6 methods)
-- **TerritoryAccessService**: Not an implementation; serves a different purpose
+- **PerformerAccessService**: Not an implementation; serves a different purpose
 - **Other implementations**: Interface allows for future implementations (e.g., local-only discovery)
 
 ---
@@ -207,7 +207,7 @@ Return results
 - Manage TLS certificates and endpoints
 - Monitor network topology
 
-### Use `TerritoryAccessService` when you need to:
+### Use `PerformerAccessService` when you need to:
 - Query locally cached performer data
 - Filter performers by territory
 - Search performers by capability
@@ -239,7 +239,7 @@ await registryService.establishTerritory('necropolis', performerInfo);
 ### Pattern 2: Query Local Cache
 ```typescript
 // Create access layer
-const accessService = new TerritoryAccessService(cache);
+const accessService = new PerformerAccessService(cache);
 
 // Query without network operations
 const performers = accessService.getPerformersByTerritory('necropolis');
@@ -252,7 +252,7 @@ const count = accessService.getPerformerCount();
 const topology = await registryService.getNetworkTopology();
 console.log(`${topology.totalPerformers} performers across ${Object.keys(topology.territories).length} territories`);
 
-// Then use TerritoryAccessService for detailed queries
+// Then use PerformerAccessService for detailed queries
 const necropolis = accessService.getPerformersByTerritory('necropolis');
 ```
 
@@ -260,7 +260,7 @@ const necropolis = accessService.getPerformersByTerritory('necropolis');
 
 ## Interface Contract Summary
 
-| Method | HttpRegistryService | TerritoryAccessService | Required |
+| Method | HttpRegistryService | PerformerAccessService | Required |
 |--------|:---:|:---:|:---:|
 | `establishTerritory()` | ✓ | ✗ | TerritoryServiceInterface |
 | `scoutTerritories()` | ✓ | ✗ | TerritoryServiceInterface |

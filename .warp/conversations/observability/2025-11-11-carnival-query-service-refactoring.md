@@ -135,7 +135,7 @@ Each method now:
 **Implementation**:
 ```typescript
 constructor(
-  private readonly territoryAccess: TerritoryAccessService,
+  private readonly territoryAccess: PerformerAccessService,
   private readonly config: CarnivalConfig,
   observabilityConfig?: ObservabilityConfig  // Optional!
 )
@@ -395,7 +395,7 @@ describe('Analytics Generation', () => {
 
 ### Integration Tests Needed
 
-1. **TerritoryAccessService Integration**
+1. **PerformerAccessService Integration**
    - Verify performer queries work correctly
    - Test with various performer counts
    - Test with missing data
@@ -451,7 +451,7 @@ describe('Analytics Generation', () => {
 
 4. **Write Tests**
    - Unit tests for all public methods
-   - Integration tests with TerritoryAccessService
+   - Integration tests with PerformerAccessService
    - Mock observability platform responses
 
 ### Medium-term (Next Quarter)
@@ -527,7 +527,7 @@ describe('Analytics Generation', () => {
 ## 🤝 Dependencies & Relationships
 
 ### Consumes
-- `TerritoryAccessService` - Performer data access
+- `PerformerAccessService` - Performer data access
 - `CarnivalConfig` - Configuration
 - Types from `src/types/public/*`
 

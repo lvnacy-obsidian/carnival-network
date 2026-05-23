@@ -1,0 +1,144 @@
+/* Territory Management Styles */
+.carnival-territory-modal {
+	padding: 20px;
+	max-width: 600px;
+}
+
+.carnival-territory-list {
+	list-style: none;
+	padding: 0;
+	margin: 10px 0;
+}
+
+.carnival-territory-list li {
+	padding: 8px 12px;
+	margin: 4px 0;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.carnival-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	font-size: 0.85em;
+	border-radius: 3px;
+	margin-left: 8px;
+}
+
+.carnival-badge-primary {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.carnival-territory-management {
+	margin-top: 15px;
+}
+
+.territory-item {
+	margin-bottom: 10px;
+	padding: 10px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+}
+
+.carnival-bulk-actions {
+	margin-top: 15px;
+	padding-top: 15px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.carnival-territory-presets {
+	margin-top: 20px;
+}
+
+.carnival-preset-buttons {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-top: 10px;
+}
+
+.carnival-preset-buttons button {
+	flex: 1;
+	min-width: 120px;
+}
+
+.territory-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 10px;
+	margin: 15px 0;
+}
+
+.territory-button {
+	padding: 10px 15px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+	cursor: pointer;
+	transition: all 0.2s;
+	text-align: center;
+}
+
+.territory-button:hover {
+	background: var(--background-secondary-alt);
+	border-color: var(--interactive-accent);
+}
+
+.territory-button.assigned {
+	background: var(--background-modifier-success);
+	border-color: var(--interactive-success);
+}
+
+.territory-button.primary {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: 600;
+}
+
+.territory-button.warning {
+	border-color: var(--background-modifier-error);
+}
+
+.territory-check {
+	color: var(--interactive-success);
+	font-weight: bold;
+}
+
+.carnival-known-territories {
+	list-style: none;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.carnival-known-territories li {
+	padding: 4px 12px;
+	background: var(--background-secondary);
+	border-radius: 12px;
+	font-size: 0.9em;
+}
+
+.carnival-territory-select-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin: 20px 0;
+}
+
+.territory-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.territory-name {
+	display: flex;
+	align-items: center;
+	font-weight: 500;
+	margin-bottom: 8px;
+}

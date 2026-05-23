@@ -1,11 +1,10 @@
 
 /* Small HTTP client wrapper with timeout, retry, and TLS/mTLS support (where possible) */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type {
 	FetchOptions,
 	TLSConfig
-} from '../types/public';
+} from '../../types/public';
 
 /**
  * Create TLS agent with certificate validation and mTLS support

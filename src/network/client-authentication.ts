@@ -1,20 +1,17 @@
+import type { RateLimiterService } from './services/rate-limiter';
 import {
 	AuthenticationError,
 	ConflictError,
 	NotFoundError
-} from '../../errors';
-import { Log } from '../../utils/logger';
+} from '../errors';
+import { Log } from '../utils/logger';
+import type CarnivalNetworkPlugin from '../main';
 import type {
 	APIRequest,
 	CarnivalNetworkSettings,
-	GuestPerformer
-} from '../../types/public';
-import type { RateLimiterService } from '../services/rate-limiter';
-
-const authLogger = {
-	context: 'Client Authentication',
-	path: '/.obsidian/plugins/carnival-records/utils/authentication'
-};
+	GuestPerformer,
+	LogContext
+} from '../types/public';
 
 /**
  * Manages authentication for external API clients
@@ -22,11 +19,18 @@ const authLogger = {
  */
 export class ClientAuthenticationManager {
 	private authenticatedClients: Map<string, GuestPerformer> = new Map();
+	private authLogger: LogContext;
 	private rateLimiterService?: RateLimiterService;
 
 	constructor(
+		private plugin: CarnivalNetworkPlugin,
 		private readonly settings: CarnivalNetworkSettings
-	) {}
+	) {
+		this.authLogger = {
+			context: 'Client Auth Manager',
+			path: `${ this.plugin.app.vault.configDir }/plugins/carnival-network/src/network/utils/client-authentication`
+		};
+	}
 
 	/**
 	 * Set the rate limiter service (injected after construction)
@@ -52,18 +56,18 @@ export class ClientAuthenticationManager {
 			const clientConfig = validApiKeys[apiKey];
 
 			if (!clientConfig) {
-				Log.warn(authLogger, `Authentication failed: API key not found`);
+				Log.warn(this.authLogger, `Authentication failed: API key not found`);
 				return null;
 			}
 			
 			if (!clientConfig.enabled) {
-				Log.warn(authLogger, `Authentication failed: Client disabled`);
+				Log.warn(this.authLogger, `Authentication failed: Client disabled`);
 				return null;
 			}
 
 			// Check if client type is allowed
 			if (clientConfig.allowedClientTypes && !clientConfig.allowedClientTypes.includes(clientType)) {
-				Log.warn(authLogger, `Authentication failed: Client type ${clientType} not allowed for this API key`);
+				Log.warn(this.authLogger, `Authentication failed: Client type ${clientType} not allowed for this API key`);
 				return null;
 			}
 
@@ -88,11 +92,11 @@ export class ClientAuthenticationManager {
 
 			this.authenticatedClients.set(clientId, client);
 			
-			Log.log(authLogger, `🔑 Authenticated ${clientType} client: ${clientId}`);
+			Log.log(this.authLogger, `🔑 Authenticated ${clientType} client: ${clientId}`);
 			return clientId;
 
 		} catch (error) {
-			Log.error(authLogger, 'Client authentication failed:', error);
+			Log.error(this.authLogger, 'Client authentication failed:', error);
 			return null;
 		}
 	}
@@ -170,7 +174,7 @@ export class ClientAuthenticationManager {
 		}
 		this.authenticatedClients.set(clientId, client);
 		
-		Log.log(authLogger, `🔄 Token refreshed for client: ${clientId}`);
+		Log.log(this.authLogger, `🔄 Token refreshed for client: ${clientId}`);
 		
 		return {
 			clientId,
@@ -195,7 +199,7 @@ export class ClientAuthenticationManager {
 		// Also clean up rate limit entries for this client
 		this.cleanupClientRateLimits(clientId);
 		
-		Log.log(authLogger, `🔒 Token revoked for client: ${clientId}`);
+		Log.log(this.authLogger, `🔒 Token revoked for client: ${clientId}`);
 	}
 
 	/**
@@ -262,7 +266,7 @@ export class ClientAuthenticationManager {
 		}
 		
 		if (expiredClients.length > 0) {
-			Log.log(authLogger, `🧹 Cleaned up ${expiredClients.length} expired client sessions`);
+			Log.log(this.authLogger, `🧹 Cleaned up ${expiredClients.length} expired client sessions`);
 		}
 		
 		// Clean up expired rate limit windows
@@ -274,7 +278,7 @@ export class ClientAuthenticationManager {
 	 */
 	destroy(): void {
 		this.authenticatedClients.clear();
-		Log.log(authLogger, '🔒 Authentication manager destroyed');
+		Log.log(this.authLogger, '🔒 Authentication manager destroyed');
 	}
 
 	// Private helper methods

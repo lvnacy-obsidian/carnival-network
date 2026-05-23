@@ -6,7 +6,7 @@ export interface ObsidianAppWithPlugins extends App {
 		plugins?: {
 			'carnival-records'?: {
 				carnivalNetwork?: {
-					httpRegistryService?: TerritoryServiceInterface;
+					CarnivalRegistryService?: TerritoryServiceInterface;
 				};
 			};
 		};

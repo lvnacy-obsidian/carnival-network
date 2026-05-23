@@ -410,7 +410,7 @@ For detailed roadmap, see [NETWORK-ROADMAP.md](NETWORK-ROADMAP.md).
 |---------|---------------|
 | **ActService** | Act creation, broadcasting, querying, search |
 | **CarnivalQueryService** | Network analytics, topology, performer status |
-| **TerritoryAccessService** | Read-only performer cache access |
+| **PerformerAccessService** | Read-only performer cache access |
 | **HttpRegistryService** | Territory registration and discovery |
 | **PersistentPerformerCache** | LRU cache with vault persistence |
 

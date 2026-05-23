@@ -82,22 +82,22 @@
  * @see local-rest-api-types.ts - Type definitions
  */
 
+import type {
+	App,
+	PluginManifest
+} from 'obsidian';
 import { ExternalAPIService } from './external-api-service';
+import { getPlugin } from '../utils/plugin-utils';
 import { Log } from '../utils/logger';
 import { APIError } from '../errors';
-import type { App } from 'obsidian';
 import type CarnivalNetworkPlugin from '../main';
 import type {
 	APIRequest,
+	LocalRestAPIPlugin,
 	LocalRestAPIPublic,
 	LocalRestAPIResponse,
 	LogContext
 } from '../types/public';
-
-const routerLogger: LogContext = {
-	context: 'API Router',
-	path: '/.obsidian/plugins/carnival-network/network/api-router'
-};
 
 /**
  * 🎪 API Router - Registers external API routes with Local REST API plugin
@@ -108,12 +108,17 @@ const routerLogger: LogContext = {
 export class APIRouter {
 	private apiService: ExternalAPIService;
 	private localRestAPI?: LocalRestAPIPublic;
+	private routerLogger: LogContext;
 
 	constructor(
 		private app: App,
 		private plugin: CarnivalNetworkPlugin
 	) {
 		this.apiService = new ExternalAPIService(plugin);
+		this.routerLogger = {
+			context: 'API Router',
+			path: `${ app.vault.configDir }/plugins/carnival-network/network/api-router`
+		};
 	}
 
 	/**
@@ -132,9 +137,9 @@ export class APIRouter {
 			// Network endpoints
 			this.registerNetworkRoutes();
 
-			Log.log(routerLogger, '🎪 API routes registered successfully');
+			Log.log(this.routerLogger, '🎪 API routes registered successfully');
 		} catch (error) {
-			Log.error(routerLogger, 'Failed to register API routes:', error);
+			Log.error(this.routerLogger, 'Failed to register API routes:', error);
 			throw error;
 		}
 	}
@@ -146,9 +151,9 @@ export class APIRouter {
 		if (this.localRestAPI) {
 			try {
 				this.localRestAPI.unregister();
-				Log.log(routerLogger, '🎪 API routes unregistered');
+				Log.log(this.routerLogger, '🎪 API routes unregistered');
 			} catch (error) {
-				Log.error(routerLogger, 'Error unregistering routes:', error);
+				Log.error(this.routerLogger, 'Error unregistering routes:', error);
 			}
 		}
 	}
@@ -180,7 +185,7 @@ export class APIRouter {
 		// POST /api/acts - Create act
 		this.localRestAPI.addRoute('/api/acts').post(async (req: APIRequest, res: LocalRestAPIResponse) => {
 			try {
-				const result = await this.apiService.handleActCreate(req as any);
+				const result = await this.apiService.handleActCreate(req);
 				res.status(201).json(result);
 			} catch (error) {
 				this.handleRouteError(res, error);
@@ -197,7 +202,7 @@ export class APIRouter {
 			}
 		});
 
-		Log.log(routerLogger, '📋 Acts routes registered');
+		Log.log(this.routerLogger, '📋 Acts routes registered');
 	}
 
 	/**
@@ -218,7 +223,7 @@ export class APIRouter {
 			}
 		});
 
-		Log.log(routerLogger, '🔍 Search routes registered');
+		Log.log(this.routerLogger, '🔍 Search routes registered');
 	}
 
 	/**
@@ -259,7 +264,7 @@ export class APIRouter {
 			}
 		});
 
-		Log.log(routerLogger, '🌐 Network routes registered');
+		Log.log(this.routerLogger, '🌐 Network routes registered');
 	}
 
 	/**
@@ -284,6 +289,72 @@ export class APIRouter {
 		};
 
 		res.status(statusCode).json(response);
-		Log.error(routerLogger, `Route error (${statusCode}):`, error);
+		Log.error(this.routerLogger, `Route error (${statusCode}):`, error);
+	}
+}
+
+/**
+ * ============================================================================
+ * Initialize API Router
+ * ============================================================================
+ * 
+ * Creates and registers the external REST API router with the Local REST API
+ * plugin. This function is called during plugin initialization (onload).
+ * 
+ * @example
+ * ```typescript
+ * // In main.ts onload():
+ * this.app.workspace.onLayoutReady(async () => {
+ *   await initializeAPIRouter.call(this);
+ * });
+ * ```
+ */
+export function initializeAPIRouter(
+	app: App,
+	plugin: CarnivalNetworkPlugin,
+	manifest: PluginManifest
+): APIRouter | undefined {
+
+	const routerLogger: LogContext = {
+		context: 'API Router',
+		path: `${ app.vault.configDir }/plugins/carnival-network/network/api-router`
+	};
+
+	try {
+		// Get Local REST API plugin
+		const localRestPlugin = getPlugin<LocalRestAPIPlugin>(app, 'obsidian-local-rest-api');
+		
+		if (!localRestPlugin) {
+			Log.warn(routerLogger, 'Local REST API plugin not found - API routes not registered');
+			return;
+		}
+
+		// Check if the method exists (defense in depth)
+		if (typeof localRestPlugin.getPublicApi !== 'function') {
+			Log.warn(
+				routerLogger, 
+				`Local REST API plugin found but getPublicApi method is missing.
+				The plugin may need to be updated.`,
+			);
+			return;
+		}
+
+		// Get public API from Local REST API plugin
+		const restAPI = (localRestPlugin).getPublicApi(manifest);
+		
+		if (!restAPI) {
+			Log.warn(routerLogger, 'Could not get Local REST API public API');
+			return;
+		}
+
+		// Create and register API router
+		const router = new APIRouter(app, plugin);
+		router.registerRoutes(restAPI);
+
+		Log.log(routerLogger, '🎪 API router initialized successfully');
+
+		return router;
+	} catch (error) {
+		Log.error(routerLogger, 'Failed to initialize API router:', error);
 	}
 }

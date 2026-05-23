@@ -135,8 +135,8 @@ import type {
 } from '../types/public';
 
 const apiLogger: LogContext = {
-  context: 'External API Service',
-  path: '/.obsidian/plugins/carnival-network/src/network/external-api-service'
+	context: 'External API Service',
+	path: '/.obsidian/plugins/carnival-network/src/network/external-api-service'
 };
 
 export class ExternalAPIService {
@@ -180,18 +180,18 @@ export class ExternalAPIService {
 				title: body.title,
 				territory: body.territory,
 				actType: body.type,
-				content: body.content || '',
+				content: body.content ?? '',
 				metadata: {
 					...body.metadata,
 					createdVia: 'external-api',
 					createdAt: new Date().toISOString()
-					},
+				},
 				createdAt: new Date(),
 				status: 'active',
 				syncPreferences: {
 					requireAck: body.requireAck ?? true,
 					broadcastToAll: body.broadcastToAll ?? false,
-					targetTerritories: body.targetTerritories || [body.territory]
+					targetTerritories: body.targetTerritories ?? [body.territory]
 				}
 			});
 
@@ -207,14 +207,14 @@ export class ExternalAPIService {
 					title: act.title,
 					territory: act.territory,
 					createdAt: act.createdAt
-					},
+				},
 				message: 'Act created successfully',
 				timestamp: new Date().toISOString()
 			};
 
 		} catch (error) {
-		Log.error(apiLogger, 'Act creation failed:', error);``
-		throw this.handleAPIError(error);
+			Log.error(apiLogger, 'Act creation failed:', error);
+			throw this.handleAPIError(error);
 		}
 	}
 
@@ -278,15 +278,15 @@ export class ExternalAPIService {
 			// Validate pagination
 			if (params.limit < 1 || params.limit > 100) {
 				throw new ValidationError(
-				'Invalid pagination parameters',
-				{ limit: 'Must be between 1 and 100' }
+					'Invalid pagination parameters',
+					{ limit: 'Must be between 1 and 100' }
 				);
 			}
 
 			if (params.offset < 0) {
 				throw new ValidationError(
-				'Invalid pagination parameters',
-				{ offset: 'Must be non-negative' }
+					'Invalid pagination parameters',
+					{ offset: 'Must be non-negative' }
 				);
 			}
 
@@ -387,19 +387,19 @@ export class ExternalAPIService {
 			// Validate search query
 			if (!body.query || body.query.trim().length < 2) {
 				throw new ValidationError(
-				'Invalid search parameters',
-				{ query: 'Query must be at least 2 characters' }
+					'Invalid search parameters',
+					{ query: 'Query must be at least 2 characters' }
 				);
 			}
 
 			if (body.query.length > 200) {
 				throw new ValidationError(
-				'Invalid search parameters',
-				{ query: 'Query must not exceed 200 characters' }
+					'Invalid search parameters',
+					{ query: 'Query must not exceed 200 characters' }
 				);
 			}
 
-			const limit = Math.min(body.limit || 20, 100);
+			const limit = Math.min(body.limit ?? 20, 100);
 
 			// Search across all performers
 			const allPerformers = Array.from(this.plugin.activePerformers.values());
@@ -414,14 +414,14 @@ export class ExternalAPIService {
 					const actService = performer.getActService();
 					const results = await actService.performSearch({
 						query: body.query.trim(),
-						territories: body.territories || [],
+						territories: body.territories ?? [],
 						limit: limit * 2 // Get extra for merging
 					});
 					
 					allResults.push(...results);
 
 				} catch (error) {
-					Log.warn(apiLogger, `Search failed for performer ${performer.getPerformerId()}:`, error);
+					Log.warn(apiLogger, `Search failed for performer ${ performer.getPerformerId() }:`, error);
 					// Continue with other performers
 				}
 			}
@@ -447,7 +447,7 @@ export class ExternalAPIService {
 					results: sortedResults,
 					resultCount: sortedResults.length,
 					hasMore: sortedResults.length === limit
-					},
+				},
 				timestamp: new Date().toISOString()
 			};
 
@@ -508,14 +508,14 @@ export class ExternalAPIService {
 				}
 
 				try {
-					const queryService = performer.getQueryService() as any; // Cast to access extended methods
+					const queryService = performer.getQueryService();
 					const topology = queryService.getCarnivalTopology();
 					const uptime = queryService.getUptimeMs();
 					const connected = queryService.getConnectedPerformersCount();
 
 					// Aggregate territories
 					for (const [name, count] of Object.entries(topology.territories)) {
-						territoriesMap.set(name, (territoriesMap.get(name) || 0) + (count as number));
+						territoriesMap.set(name, (territoriesMap.get(name) ?? 0) + (count));
 					}
 
 					// Aggregate capabilities
@@ -528,7 +528,7 @@ export class ExternalAPIService {
 					maxUptime = Math.max(maxUptime, uptime);
 
 				} catch (error) {
-					Log.warn(apiLogger, `Failed to get status from performer ${performer.getPerformerId()}:`, error);
+					Log.warn(apiLogger, `Failed to get status from performer ${ performer.getPerformerId() }:`, error);
 					// Continue with other performers
 				}
 			}
@@ -574,12 +574,12 @@ export class ExternalAPIService {
 				}
 				
 				try {
-					const queryService = performer.getQueryService() as any;
+					const queryService = performer.getQueryService();
 					const topology = queryService.getCarnivalTopology();
 					
 					// Merge territory counts
 					for (const [name, count] of Object.entries(topology.territories)) {
-						territoriesMap.set(name, (territoriesMap.get(name) || 0) + count);
+						territoriesMap.set(name, (territoriesMap.get(name) ?? 0) + count);
 					}
 				} catch (error) {
 					Log.warn(apiLogger, `Failed to get topology from performer ${performer.getPerformerId()}:`, error);
@@ -596,9 +596,9 @@ export class ExternalAPIService {
 			return {
 				status: 'success',
 				data: {
-				territories,
-				total: territories.length,
-				active: territories.filter(t => t.status === 'active').length
+					territories,
+					total: territories.length,
+					active: territories.filter(t => t.status === 'active').length
 				},
 				timestamp: new Date().toISOString()
 			};
@@ -617,7 +617,7 @@ export class ExternalAPIService {
 		try {
 			const params = request.query as { metrics?: string; timeframe?: string };
 			const metrics = this.parseMetricsParam(params.metrics);
-			const timeframe = params.timeframe || '7d';
+			const timeframe = params.timeframe ?? '7d';
 
 			// Aggregate analytics from all performers
 			const allPerformers = Array.from(this.plugin.activePerformers.values());
@@ -641,7 +641,7 @@ export class ExternalAPIService {
 				}
 
 				try {
-					const queryService = performer.getQueryService() as any; // Cast to access extended methods
+					const queryService = performer.getQueryService();
 					const data = queryService.generateAnalytics(metrics);
 					analyticsResults.push(data);
 				} catch (error) {
@@ -716,7 +716,7 @@ export class ExternalAPIService {
 
 	private getFirstPerformer() {
 		const performers = Array.from(this.plugin.activePerformers.values());
-		return performers.find(p => p.isPerforming()) || null;
+		return performers.find(p => p.isPerforming()) ?? null;
 	}
 
 	/**
@@ -772,7 +772,9 @@ export class ExternalAPIService {
 		};
 
 		for (const result of results) {
-			if (!result.activity) continue;
+			if (!result.activity) {
+				continue;
+			}
 
 			merged.active += result.activity.active || 0;
 			merged.inactive += result.activity.inactive || 0;
@@ -781,7 +783,7 @@ export class ExternalAPIService {
 			// Merge byTerritory
 			if (result.activity.byTerritory) {
 				for (const [territory, count] of Object.entries(result.activity.byTerritory)) {
-					merged.byTerritory[territory] = (merged.byTerritory[territory] || 0) + (count as number);
+					merged.byTerritory[territory] = (merged.byTerritory[territory] ?? 0) + (count);
 				}
 			}
 		}
@@ -803,13 +805,17 @@ export class ExternalAPIService {
 		};
 
 		for (const result of results) {
-			if (!result.records) continue;
+			if (!result.records) {
+				continue;
+			}
 
 			merged.total += result.records.total || 0;
 
 			// Merge byTerritory
 			if (result.records.byTerritory) {
 				for (const [territory, data] of Object.entries(result.records.byTerritory)) {
+					
+					/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */
 					if (!merged.byTerritory[territory]) {
 						merged.byTerritory[territory] = {
 							performerCount: 0,
@@ -818,13 +824,13 @@ export class ExternalAPIService {
 						};
 					}
 
-					const territoryData = data as any;
-					merged.byTerritory[territory].performerCount += territoryData.performerCount || 0;
+					const territoryData = data;
+					merged.byTerritory[territory].performerCount += territoryData.performerCount ?? 0;
 
 					// Merge capabilities
 					const capSet = new Set([
 						...merged.byTerritory[territory].capabilities,
-						...(territoryData.capabilities || [])
+						...(territoryData.capabilities ?? [])
 					]);
 					merged.byTerritory[territory].capabilities = Array.from(capSet);
 
@@ -855,10 +861,12 @@ export class ExternalAPIService {
 		const merged: Record<string, number> = {};
 
 		for (const result of results) {
-			if (!result.capabilities) continue;
+			if (!result.capabilities) {
+				continue;
+			}
 
 			for (const [capability, count] of Object.entries(result.capabilities)) {
-				merged[capability] = (merged[capability] || 0) + (count as number);
+				merged[capability] = (merged[capability] || 0) + (count);
 			}
 		}
 
@@ -874,7 +882,9 @@ export class ExternalAPIService {
 		let totalPerformerCount = 0;
 
 		for (const result of results) {
-			if (!result.performance) continue;
+			if (!result.performance) {
+				continue;
+			}
 
 			// Track max uptime
 			if (result.performance.uptimeMs) {
