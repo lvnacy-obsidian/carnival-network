@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "carnival-network",
+	"name": "Carnival Network",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Inter-vault network protocol for Obsidian.",
+	"author": "L V N A C Y",
+	"authorUrl": "https://github.com/xlvnacyx",
+	"fundingUrl": "https://ko-fi.com/lvnacy",
 	"isDesktopOnly": false
 }

@@ -1,0 +1,548 @@
+/**
+ * ============================================================================
+ * 🎪 CARNIVAL NETWORK SETTINGS - STYLES
+ * ============================================================================
+ * 
+ * Styling for the tabbed settings interface
+ */
+
+/* ============================================================================
+ * 🎪 CARNIVAL NETWORK SETTINGS - STYLES
+ * ============================================================================
+ * Modern tabbed interface styling
+ */
+
+/* Container */
+.carnival-settings-container {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 20px;
+}
+
+/* Refresh Controls */
+.carnival-refresh-controls {
+	display: flex;
+	gap: 15px;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+/* Status Grid */
+.carnival-status-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 12px;
+	margin-top: 10px;
+}
+
+.carnival-status-card {
+	padding: 15px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	text-align: center;
+}
+
+.carnival-status-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	margin-bottom: 5px;
+}
+
+.carnival-status-value {
+	font-size: 1.3em;
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.carnival-status-card.status-connected .carnival-status-value {
+	color: var(--color-green);
+}
+
+.carnival-status-card.status-error .carnival-status-value {
+	color: var(--color-red);
+}
+
+.carnival-status-card.status-warning .carnival-status-value {
+	color: var(--color-orange);
+}
+
+.carnival-status-card.status-disconnected .carnival-status-value {
+	color: var(--text-muted);
+}
+
+/* Circuit Breaker Grid */
+.carnival-circuit-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 10px;
+	margin-top: 10px;
+}
+
+.carnival-circuit-card {
+	padding: 12px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	border-left: 3px solid var(--background-modifier-border);
+}
+
+.carnival-circuit-card.status-connected {
+	border-left-color: var(--color-green);
+}
+
+.carnival-circuit-card.status-error {
+	border-left-color: var(--color-red);
+}
+
+.carnival-circuit-card.status-warning {
+	border-left-color: var(--color-orange);
+}
+
+.carnival-circuit-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	margin-bottom: 4px;
+}
+
+.carnival-circuit-state {
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+/* Topology List */
+.carnival-topology-list {
+	list-style: disc;
+	margin-left: 20px;
+	margin-top: 10px;
+}
+
+.carnival-topology-list li {
+	margin: 5px 0;
+}
+
+/* Action Buttons */
+.carnival-action-buttons {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-top: 10px;
+}
+
+.carnival-action-buttons button {
+	min-width: 150px;
+}
+
+/* About Section */
+.carnival-about h3 {
+	margin-top: 0;
+	margin-bottom: 10px;
+}
+
+.carnival-about h4 {
+	margin-top: 15px;
+	margin-bottom: 8px;
+}
+
+.carnival-about ul {
+	list-style: disc;
+	margin-left: 20px;
+	margin-bottom: 15px;
+}
+
+.carnival-about li {
+	margin: 5px 0;
+}
+  border-bottom: 2px solid var(--background-modifier-border);
+}
+
+.carnival-settings-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.carnival-settings-subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ========================================================================
+   TAB NAVIGATION
+   ======================================================================== */
+
+.carnival-tab-nav {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--background-modifier-border);
+  padding-bottom: 0;
+  overflow-x: auto;
+}
+
+.carnival-tab-button {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.carnival-tab-button:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.carnival-tab-button.active {
+  color: var(--text-accent);
+  border-bottom-color: var(--text-accent);
+  font-weight: 600;
+}
+
+/* ========================================================================
+   TAB CONTENT
+   ======================================================================== */
+
+.carnival-tab-content {
+  min-height: 400px;
+}
+
+/* ========================================================================
+   COLLAPSIBLE SECTIONS
+   ======================================================================== */
+
+.carnival-collapsible-section {
+  margin-bottom: 20px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.carnival-section-header {
+  padding: 14px 16px;
+  background: var(--background-secondary);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.2s ease;
+  user-select: none;
+}
+
+.carnival-section-header:hover {
+  background: var(--background-modifier-hover);
+}
+
+.carnival-section-header.expanded {
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.carnival-section-header .section-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-normal);
+}
+
+.carnival-section-header .section-toggle {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-left: 8px;
+  transition: opacity 0.2s ease;
+}
+
+.carnival-section-header:hover .section-toggle {
+  opacity: 1;
+}
+
+.carnival-section-content {
+  padding: 16px;
+  background: var(--background-primary);
+}
+
+.carnival-section-content .setting-item-description {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--background-secondary);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ========================================================================
+   BADGES
+   ======================================================================== */
+
+.carnival-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: 8px;
+}
+
+.carnival-badge-future {
+  background: var(--background-modifier-info);
+  color: var(--text-on-accent);
+}
+
+/* ========================================================================
+   WARNINGS & ALERTS
+   ======================================================================== */
+
+.carnival-warning {
+  padding: 16px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: 2px solid var(--background-modifier-error);
+  background: var(--background-modifier-error-hover);
+}
+
+.carnival-warning strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 16px;
+  color: var(--text-error);
+}
+
+.carnival-warning p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--text-normal);
+}
+
+/* ========================================================================
+   API KEYS
+   ======================================================================== */
+
+.api-keys-list {
+  margin-top: 12px;
+}
+
+.api-key-item {
+  margin-bottom: 8px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.api-key-item .setting-item {
+  border: none;
+  padding: 0;
+}
+
+.carnival-empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  margin-top: 12px;
+}
+
+/* ========================================================================
+   API KEY MODAL
+   ======================================================================== */
+
+.carnival-api-key-modal {
+  min-width: 500px;
+  max-width: 600px;
+}
+
+.carnival-api-key-modal .modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.carnival-api-key-modal .modal-content {
+  margin-bottom: 20px;
+}
+
+.carnival-api-key-modal .modal-button-container {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* ========================================================================
+   REGISTRY ENDPOINTS
+   ======================================================================== */
+
+.registry-endpoints-container {
+  margin-top: 12px;
+}
+
+.endpoint-item {
+  margin-bottom: 8px;
+  padding: 8px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.endpoint-item .setting-item {
+  border: none;
+  padding: 0;
+}
+
+.registry-endpoints-container > button {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+/* ========================================================================
+   FORM ELEMENTS
+   ======================================================================== */
+
+.carnival-setting-error {
+  color: var(--text-error);
+  font-size: 12px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: var(--background-modifier-error-hover);
+  border-radius: 4px;
+  border-left: 3px solid var(--text-error);
+}
+
+input.error,
+textarea.error {
+  border-color: var(--text-error) !important;
+  background: var(--background-modifier-error-hover) !important;
+}
+
+/* ========================================================================
+   STATUS INDICATORS
+   ======================================================================== */
+
+.status-healthy {
+  color: var(--text-success) !important;
+}
+
+.status-warning {
+  color: var(--text-warning) !important;
+}
+
+.status-error {
+  color: var(--text-error) !important;
+}
+
+.status-unknown {
+  color: var(--text-muted) !important;
+}
+
+/* ========================================================================
+   CIRCUIT STATES
+   ======================================================================== */
+
+.circuit-state {
+  font-size: 20px;
+  margin-right: 8px;
+}
+
+.circuit-closed {
+  color: var(--text-success);
+}
+
+.circuit-open {
+  color: var(--text-error);
+}
+
+.circuit-half-open {
+  color: var(--text-warning);
+}
+
+/* ========================================================================
+   RESPONSIVE DESIGN
+   ======================================================================== */
+
+@media (max-width: 768px) {
+  .carnival-settings-container {
+    max-width: 100%;
+    padding: 0 8px;
+  }
+
+  .carnival-tab-button {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .carnival-section-header {
+    padding: 12px 12px;
+  }
+
+  .carnival-section-content {
+    padding: 12px;
+  }
+
+  .carnival-api-key-modal {
+    min-width: 90vw;
+    max-width: 90vw;
+  }
+}
+
+/* ========================================================================
+   DARK MODE ADJUSTMENTS
+   ======================================================================== */
+
+.theme-dark .carnival-collapsible-section {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.theme-dark .carnival-section-header {
+  background: var(--background-primary-alt);
+}
+
+.theme-dark .carnival-section-header:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* ========================================================================
+   ACCESSIBILITY
+   ======================================================================== */
+
+.carnival-tab-button:focus-visible,
+.carnival-section-header:focus-visible {
+  outline: 2px solid var(--text-accent);
+  outline-offset: 2px;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--text-accent);
+  outline-offset: 2px;
+}
+
+/* ========================================================================
+   UTILITY CLASSES
+   ======================================================================== */
+
+.carnival-mt-4 {
+  margin-top: 16px;
+}
+
+.carnival-mb-4 {
+  margin-bottom: 16px;
+}
+
+.carnival-text-muted {
+  color: var(--text-muted);
+}
+
+.carnival-text-accent {
+  color: var(--text-accent);
+}
